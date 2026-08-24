@@ -1,7 +1,7 @@
 # Clasp external release handoff
 
 Observed: **2026-08-24**
-Status: **local product ready; Bundle ID and public GitHub repository created; remaining external identities, app record, compliance, and release publication remain fail-closed**
+Status: **local product ready; Bundle ID, public GitHub repository, protected `main`, and protected release environments created; remaining external identities, app record, compliance, and release publication remain fail-closed**
 
 This guide starts where the verified local build and repository release scaffolding stop. It does not authorize accepting agreements, choosing legal/compliance answers, generating credentials, publishing source, uploading binaries, or submitting for review without Robert at the relevant gate.
 
@@ -12,7 +12,9 @@ This guide starts where the verified local build and repository release scaffold
 - **Apple Developer → Certificates** lists two valid Developer ID Application certificates for direct distribution and one development certificate. It does not list an Apple Distribution / Mac App Distribution or Mac Installer Distribution certificate. The local keychain has zero valid code-signing identities, so the server-side certificate rows do not prove private-key custody.
 - **Apple Developer → Profiles** lists only DRG Agent Relay / Bridge profiles; no Clasp App Store profile exists.
 - **App Store Connect → Business** shows the Free Apps Agreement active. EU trader compliance is incomplete. The Paid Apps Agreement is new and unsigned; do not accept it unless the product will offer paid apps or in-app purchases and Robert approves the legal action.
-- **GitHub** now has the approved public repository `https://github.com/RobertBMoore/clasp` with no license file. The local checkout uses it as `origin`; source push, branch protection, release environments, variables, and secrets must still be verified from the exact published commit.
+- **GitHub** has the approved public repository `https://github.com/RobertBMoore/clasp` with no license file. The local checkout uses it as `origin`, and commit `71c7ae55ef50e8908ce72bdb57ac2ebb862b08f0` is public with no untracked `artifacts/` data. Public CI run `https://github.com/RobertBMoore/clasp/actions/runs/32755060746` passed the local, App Store, direct-download, and release-contract boundaries in 5m 11s.
+- **GitHub branch protection** applies to `main`: pull requests are required, approvals are deliberately not required for the solo maintainer, branches must be current, `test-and-package-local` from GitHub Actions must pass, conversations must be resolved, and linear history is required. Force pushes and deletions remain disabled.
+- **GitHub release environments** `release` and `app-store-release` require reviewer `RobertBMoore`, disallow administrator bypass, allow self-review for the solo maintainer, and accept deployments only from protected branches. The direct environment has the public `CLASP_UPDATE_FEED_URL`; the Store environment has the non-secret protection acknowledgement, team/application-prefix assertions, and initial accepted-build assertion. Credential-backed identities, public keys, privacy URL, and secrets remain intentionally unset.
 
 The unauthenticated Sparkle feed requires this public repository. Do not generate Apple/Sparkle keys, accept legal agreements, choose trader/export-compliance answers, or submit the app for review without action-time confirmation.
 
@@ -26,8 +28,8 @@ The unauthenticated Sparkle feed requires this public repository. Do not generat
    - App Store provisioning profile for the exact Bundle ID and team.
 3. **Resolve Account Holder gates**: EU trader status, tax/banking if applicable, encryption export compliance for CryptoKit AES-GCM Vault data, age rating, content rights, and App Privacy. The Free Apps Agreement is already active.
 4. **Approve and publish real HTTPS pages** for Support, Privacy Policy, and monitored security contact. Replace every `TBD` and prove anonymous HTTPS reachability.
-5. **Push and protect GitHub**: push the verified commit to `https://github.com/RobertBMoore/clasp`, protect `main`, and confirm the public repository contains no untracked `artifacts/` data or credentials. The repository intentionally has no license until Robert chooses one.
-6. **Configure protected GitHub environments** from `release/README.md`, including required reviewers, release variables, and secrets. Never paste private keys or P12 contents into source, issues, logs, screenshots, or this handoff.
+5. **Maintain the protected GitHub boundary** already configured at `https://github.com/RobertBMoore/clasp`: every follow-up must use a pull request, pass `test-and-package-local`, remain current with `main`, resolve conversations, and preserve linear history. Never publish untracked `artifacts/` data or credentials. The repository intentionally has no license until Robert chooses one.
+6. **Complete the two protected GitHub environments** from `release/README.md` after the external credentials and URLs exist. Required reviewers, protected-branch-only deployment, the public direct feed URL, and the known Store account assertions are configured. Add the remaining identity/public-key/privacy variables and secrets only from exact approved custody; never paste private keys or P12 contents into source, issues, logs, screenshots, or this handoff.
 7. **Produce the signed Store package** with the manual `Mac App Store package` workflow and complete `AppStore/SUBMISSION_HANDOFF.md` from its exact run and checksum.
 8. **Upload the finished package** using Xcode, Transporter, or Apple’s supported command-line uploader. Chrome is for the app record, metadata, compliance, processed-build selection, and review submission—not binary transport.
 9. **Run signed-sandbox acceptance** on a disposable environment with synthetic data, then complete `AppStore/MIGRATION_ACCEPTANCE.md`.
@@ -36,7 +38,7 @@ The unauthenticated Sparkle feed requires this public repository. Do not generat
 
 ## Direct-update publication order
 
-1. Protect `main` in the approved public GitHub repository and configure the `release` environment.
+1. Preserve the configured `main` protection and `release` environment gates in the approved public GitHub repository.
 2. Recover/import the private key for one exact existing Developer ID certificate, or explicitly authorize a new identity if Apple permits it; record the selected fingerprint and custodian before adding protected secrets.
 3. Generate a separate Sparkle EdDSA keypair; never reuse an Apple certificate key.
 4. Publish a real signed/notarized baseline N release and complete its acceptance.
