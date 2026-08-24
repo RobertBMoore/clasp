@@ -17,6 +17,7 @@ PROFILE="${CLASP_APP_STORE_PROVISIONING_PROFILE:-}"
 TEAM_ID="${CLASP_APP_STORE_TEAM_ID:-}"
 APP_ID_PREFIX="${CLASP_APP_STORE_APP_ID_PREFIX:-}"
 APPLICATION_IDENTITY="${CLASP_APP_STORE_APPLICATION_IDENTITY:-}"
+APPLICATION_CERTIFICATE_SHA256="${CLASP_APP_STORE_APPLICATION_CERTIFICATE_SHA256:-}"
 OUTPUT="$ROOT_DIR/release-output/AppStore/$CLASP_APP_NAME.app"
 MANAGED_OUTPUT=""
 while (($#)); do
@@ -27,6 +28,7 @@ while (($#)); do
     --team-id) TEAM_ID="$2"; shift 2 ;;
     --app-id-prefix) APP_ID_PREFIX="$2"; shift 2 ;;
     --application-identity) APPLICATION_IDENTITY="$2"; shift 2 ;;
+    --application-certificate-sha256) APPLICATION_CERTIFICATE_SHA256="$2"; shift 2 ;;
     --output) OUTPUT="$2"; shift 2 ;;
     --managed-output) MANAGED_OUTPUT="$2"; shift 2 ;;
     *) app_store_die "unknown argument: $1" ;;
@@ -45,7 +47,8 @@ OUT_PARENT="$(dirname "$OUTPUT")"
   --team-id "$TEAM_ID" \
   --app-id-prefix "$APP_ID_PREFIX" \
   --entitlements "$ROOT_DIR/release/Clasp.app-store.entitlements" \
-  --application-identity "$APPLICATION_IDENTITY"
+  --application-identity "$APPLICATION_IDENTITY" \
+  --application-certificate-sha256 "$APPLICATION_CERTIFICATE_SHA256"
 
 STAGE_DIR="$(mktemp -d "$OUT_PARENT/.clasp-app-store.XXXXXX")"
 trap 'rm -rf "$STAGE_DIR"' EXIT
@@ -87,6 +90,7 @@ codesign --force --options runtime --timestamp --generate-entitlement-der \
   --team-id "$TEAM_ID" \
   --app-id-prefix "$APP_ID_PREFIX" \
   --application-identity "$APPLICATION_IDENTITY" \
+  --application-certificate-sha256 "$APPLICATION_CERTIFICATE_SHA256" \
   --version "$VERSION" \
   --build-number "$BUILD_NUMBER"
 

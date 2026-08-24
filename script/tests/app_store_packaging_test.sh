@@ -6,6 +6,7 @@ VALIDATOR="$ROOT_DIR/script/lib/validate_app_store_profile_payload.sh"
 SIGNED_VALIDATOR="$ROOT_DIR/script/validate_app_store_profile.sh"
 PAYLOAD_VALIDATOR="$ROOT_DIR/script/lib/verify_packaged_app_payload.sh"
 COMMON="$ROOT_DIR/script/lib/app_store_common.sh"
+STAGER="$ROOT_DIR/script/stage_app.sh"
 FIXTURE="$ROOT_DIR/script/tests/fixtures/app-store-profile-valid.plist"
 ENTITLEMENTS="$ROOT_DIR/release/Clasp.app-store.entitlements"
 METADATA="$ROOT_DIR/release/AppStore/METADATA_DRAFT.md"
@@ -34,6 +35,7 @@ expect_failure() {
 }
 
 plutil -lint "$FIXTURE" "$ENTITLEMENTS" >/dev/null
+grep -F 'app_store_clear_profile_download_xattrs "$APP/Contents/embedded.provisionprofile"' "$STAGER" >/dev/null
 validate_payload "$FIXTURE" >/dev/null
 grep -F 'selected-content capture through macOS Services' "$METADATA" >/dev/null
 grep -F 'omits Accessibility-assisted selection shortcuts' "$METADATA" >/dev/null
@@ -41,6 +43,54 @@ if grep -F 'selection capture permissions' "$METADATA" >/dev/null; then
   echo "App Store review notes still describe a permission flow absent from the Store build" >&2
   exit 1
 fi
+
+FIXTURE_INSTALLER_IDENTITY='3rd Party Mac Developer Installer: Fixture LLC (ZYXWV67890)'
+FIXTURE_INSTALLER_SHA256='D73319AA7B859462C3B26E6B1315F8D246F6FD157274ECCBF8C73A0293F03D9E'
+VALID_PACKAGE_SIGNATURE=$'Package "fixture.pkg":\n   Status: signed by a developer certificate issued by Apple (Development)\n   Certificate Chain:\n    1. 3rd Party Mac Developer Installer: Fixture LLC (ZYXWV67890)\n       Expires: 2027-08-24 18:45:06 +0000\n       SHA256 Fingerprint:\n           D7 33 19 AA 7B 85 94 62 C3 B2 6E 6B 13 15 F8 D2 46 F6 FD 15 72 74\n           EC CB F8 C7 3A 02 93 F0 3D 9E\n       ------------------------------------------------------------------------\n    2. Apple Worldwide Developer Relations Certification Authority'
+app_store_validate_package_signature_details \
+  "$VALID_PACKAGE_SIGNATURE" "$FIXTURE_INSTALLER_IDENTITY" "$FIXTURE_INSTALLER_SHA256"
+TRUSTED_PACKAGE_SIGNATURE="${VALID_PACKAGE_SIGNATURE/signed by a developer certificate issued by Apple \(Development\)/signed by a certificate trusted by macOS}"
+app_store_validate_package_signature_details \
+  "$TRUSTED_PACKAGE_SIGNATURE" "$FIXTURE_INSTALLER_IDENTITY" "$FIXTURE_INSTALLER_SHA256"
+expect_failure duplicate-package-status \
+  app_store_validate_package_signature_details \
+  "$VALID_PACKAGE_SIGNATURE"$'\n   Status: no signature' \
+  "$FIXTURE_INSTALLER_IDENTITY" "$FIXTURE_INSTALLER_SHA256"
+expect_failure wrong-package-identity \
+  app_store_validate_package_signature_details \
+  "$VALID_PACKAGE_SIGNATURE" \
+  '3rd Party Mac Developer Installer: Wrong LLC (ZYXWV67890)' \
+  "$FIXTURE_INSTALLER_SHA256"
+expect_failure wrong-package-fingerprint \
+  app_store_validate_package_signature_details \
+  "$VALID_PACKAGE_SIGNATURE" "$FIXTURE_INSTALLER_IDENTITY" \
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+expect_failure duplicate-package-leaf \
+  app_store_validate_package_signature_details \
+  "$VALID_PACKAGE_SIGNATURE"$'\n    1. 3rd Party Mac Developer Installer: Fixture LLC (ZYXWV67890)' \
+  "$FIXTURE_INSTALLER_IDENTITY" "$FIXTURE_INSTALLER_SHA256"
+NOISY_PACKAGE_FINGERPRINT="${VALID_PACKAGE_SIGNATURE/D7 33 19 AA/D7 33 19! AA}"
+expect_failure noisy-package-fingerprint \
+  app_store_validate_package_signature_details \
+  "$NOISY_PACKAGE_FINGERPRINT" "$FIXTURE_INSTALLER_IDENTITY" \
+  "$FIXTURE_INSTALLER_SHA256"
+LONG_PACKAGE_FINGERPRINT="${VALID_PACKAGE_SIGNATURE/EC CB F8 C7 3A 02 93 F0 3D 9E/EC CB F8 C7 3A 02 93 F0 3D 9E 00}"
+expect_failure long-package-fingerprint \
+  app_store_validate_package_signature_details \
+  "$LONG_PACKAGE_FINGERPRINT" "$FIXTURE_INSTALLER_IDENTITY" \
+  "$FIXTURE_INSTALLER_SHA256"
+
+app_store_profile_xattrs_are_safe ""
+app_store_profile_xattrs_are_safe $'com.apple.macl\ncom.apple.provenance'
+if app_store_profile_xattrs_are_safe $'com.apple.provenance\ncom.example.fixture'; then
+  echo "unexpected provisioning-profile xattr was accepted" >&2
+  exit 1
+fi
+PROFILE_XATTR_FIXTURE="$TEMP_DIR/profile-xattrs"
+printf 'fixture' >"$PROFILE_XATTR_FIXTURE"
+xattr -w com.example.clasp-fixture value "$PROFILE_XATTR_FIXTURE"
+app_store_clear_profile_download_xattrs "$PROFILE_XATTR_FIXTURE"
+app_store_profile_xattrs_are_safe "$(xattr "$PROFILE_XATTR_FIXTURE")"
 
 SAFE_APP_STORE_SYMBOLS=$'                 U _NSAccessibilityPostNotification\n0000000100001000 T _$s15PersonalNotepad24LocalConfirmationPresenterC'
 if app_store_symbol_list_contains_selection_capture "$SAFE_APP_STORE_SYMBOLS"; then
@@ -113,6 +163,9 @@ PAYLOAD_APP="$TEMP_DIR/Clasp.app"
 PAYLOAD_PACKAGE="$TEMP_DIR/Clasp-fixture.pkg"
 ditto "$ROOT_DIR/dist/Clasp.app" "$PAYLOAD_APP"
 productbuild --component "$PAYLOAD_APP" /Applications "$PAYLOAD_PACKAGE" >/dev/null
+expect_failure unsigned-package-signature \
+  app_store_verify_package_signature \
+  "$PAYLOAD_PACKAGE" "$FIXTURE_INSTALLER_IDENTITY" "$FIXTURE_INSTALLER_SHA256"
 "$PAYLOAD_VALIDATOR" "$PAYLOAD_APP" "$PAYLOAD_PACKAGE" >/dev/null
 
 plutil -replace CFBundleVersion -string 999 "$PAYLOAD_APP/Contents/Info.plist"

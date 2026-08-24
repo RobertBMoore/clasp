@@ -61,6 +61,8 @@ jobs:
           APP_ID_PREFIX: ${{ vars.CLASP_APP_STORE_APP_ID_PREFIX }}
           APPLICATION_IDENTITY: ${{ vars.CLASP_APP_STORE_APPLICATION_IDENTITY }}
           INSTALLER_IDENTITY: ${{ vars.CLASP_APP_STORE_INSTALLER_IDENTITY }}
+          APPLICATION_CERTIFICATE_SHA256: ${{ vars.CLASP_APP_STORE_APPLICATION_CERTIFICATE_SHA256 }}
+          INSTALLER_CERTIFICATE_SHA256: ${{ vars.CLASP_APP_STORE_INSTALLER_CERTIFICATE_SHA256 }}
           PRIVACY_POLICY_URL: ${{ vars.CLASP_PRIVACY_POLICY_URL }}
           LAST_ACCEPTED_BUILD_NUMBER: ${{ vars.CLASP_APP_STORE_LAST_ACCEPTED_BUILD_NUMBER }}
           REQUESTED_BUILD_NUMBER: ${{ inputs.build_number }}
@@ -71,6 +73,8 @@ jobs:
           [[ "$APP_ID_PREFIX" =~ ^[A-Z0-9]{10}$ ]]
           [[ "$APPLICATION_IDENTITY" == 'Apple Distribution: '* || "$APPLICATION_IDENTITY" == '3rd Party Mac Developer Application: '* ]]
           [[ "$INSTALLER_IDENTITY" == '3rd Party Mac Developer Installer: '* || "$INSTALLER_IDENTITY" == 'Mac Installer Distribution: '* ]]
+          [[ "$APPLICATION_CERTIFICATE_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]]
+          [[ "$INSTALLER_CERTIFICATE_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]]
           ./script/lib/validate_public_https_url.sh \
             "$PRIVACY_POLICY_URL" --require-reachable
           [[ "$LAST_ACCEPTED_BUILD_NUMBER" =~ ^(0|[1-9][0-9]{0,17})$ ]]
@@ -125,6 +129,8 @@ jobs:
           CLASP_APP_STORE_APP_ID_PREFIX: ${{ vars.CLASP_APP_STORE_APP_ID_PREFIX }}
           CLASP_APP_STORE_APPLICATION_IDENTITY: ${{ vars.CLASP_APP_STORE_APPLICATION_IDENTITY }}
           CLASP_APP_STORE_INSTALLER_IDENTITY: ${{ vars.CLASP_APP_STORE_INSTALLER_IDENTITY }}
+          CLASP_APP_STORE_APPLICATION_CERTIFICATE_SHA256: ${{ vars.CLASP_APP_STORE_APPLICATION_CERTIFICATE_SHA256 }}
+          CLASP_APP_STORE_INSTALLER_CERTIFICATE_SHA256: ${{ vars.CLASP_APP_STORE_INSTALLER_CERTIFICATE_SHA256 }}
           CLASP_PRIVACY_POLICY_URL: ${{ vars.CLASP_PRIVACY_POLICY_URL }}
         run: |
           set -euo pipefail

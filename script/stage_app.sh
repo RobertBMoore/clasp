@@ -10,6 +10,9 @@ source "$ROOT_DIR/script/lib/output_custody.sh"
 # shellcheck source=lib/direct_package_resolution.sh
 # shellcheck disable=SC1091
 source "$ROOT_DIR/script/lib/direct_package_resolution.sh"
+# shellcheck source=lib/app_store_common.sh
+# shellcheck disable=SC1091
+source "$ROOT_DIR/script/lib/app_store_common.sh"
 
 CHANNEL="local"; CONFIGURATION="debug"; VERSION="$CLASP_VERSION"; BUILD_NUMBER="$CLASP_BUILD_NUMBER"
 OUTPUT="$ROOT_DIR/dist/$CLASP_APP_NAME.app"; SIGN_IDENTITY="-"; PROFILE=""
@@ -176,6 +179,10 @@ if [[ "$CHANNEL" == direct ]]; then
 elif [[ "$CHANNEL" == app-store ]]; then
   cp "$ROOT_DIR/release/AppStore/container-migration.plist" "$APP/Contents/Resources/container-migration.plist"
   cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
+  # Clear removable download metadata before signing and packaging. macOS 26
+  # can retain OS-managed macl/provenance attributes even when xattr -c exits
+  # successfully, so fail closed if anything outside that allowlist remains.
+  app_store_clear_profile_download_xattrs "$APP/Contents/embedded.provisionprofile"
   codesign --force --options runtime --timestamp --entitlements "$ROOT_DIR/release/Clasp.app-store.entitlements" --sign "$SIGN_IDENTITY" "$APP"
 else
   codesign --force --deep --sign - "$APP"

@@ -7,7 +7,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/script/lib/app_store_common.sh"
 
 PROFILE=""; BUNDLE_ID=""; TEAM_ID=""; APP_ID_PREFIX=""; ENTITLEMENTS=""
-APPLICATION_IDENTITY=""
+APPLICATION_IDENTITY=""; APPLICATION_CERTIFICATE_SHA256=""
 while (($#)); do
   case "$1" in
     --profile) PROFILE="$2"; shift 2 ;;
@@ -16,6 +16,7 @@ while (($#)); do
     --app-id-prefix) APP_ID_PREFIX="$2"; shift 2 ;;
     --entitlements) ENTITLEMENTS="$2"; shift 2 ;;
     --application-identity) APPLICATION_IDENTITY="$2"; shift 2 ;;
+    --application-certificate-sha256) APPLICATION_CERTIFICATE_SHA256="$2"; shift 2 ;;
     *) app_store_die "unknown argument: $1" ;;
   esac
 done
@@ -39,6 +40,7 @@ security cms -D -i "$PROFILE" -o "$PAYLOAD" >/dev/null \
   --app-id-prefix "$APP_ID_PREFIX" \
   --entitlements "$ENTITLEMENTS"
 
-app_store_require_identity application "$APPLICATION_IDENTITY"
-app_store_profile_certificate_matches_identity "$PAYLOAD" "$APPLICATION_IDENTITY"
+app_store_require_identity_certificate application "$APPLICATION_IDENTITY" "$APPLICATION_CERTIFICATE_SHA256"
+app_store_profile_certificate_matches_identity \
+  "$PAYLOAD" "$APPLICATION_IDENTITY" "$APPLICATION_CERTIFICATE_SHA256"
 echo "validated signed App Store provisioning profile: $PROFILE"

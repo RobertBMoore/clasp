@@ -11,6 +11,7 @@ source "$ROOT_DIR/script/lib/app_store_common.sh"
 
 APP=""; PACKAGE=""; PROFILE=""; TEAM_ID=""; APP_ID_PREFIX=""
 APPLICATION_IDENTITY=""; INSTALLER_IDENTITY=""; VERSION=""; BUILD_NUMBER=""
+APPLICATION_CERTIFICATE_SHA256=""; INSTALLER_CERTIFICATE_SHA256=""
 while (($#)); do
   case "$1" in
     --app) APP="$2"; shift 2 ;;
@@ -20,6 +21,8 @@ while (($#)); do
     --app-id-prefix) APP_ID_PREFIX="$2"; shift 2 ;;
     --application-identity) APPLICATION_IDENTITY="$2"; shift 2 ;;
     --installer-identity) INSTALLER_IDENTITY="$2"; shift 2 ;;
+    --application-certificate-sha256) APPLICATION_CERTIFICATE_SHA256="$2"; shift 2 ;;
+    --installer-certificate-sha256) INSTALLER_CERTIFICATE_SHA256="$2"; shift 2 ;;
     --version) VERSION="$2"; shift 2 ;;
     --build-number) BUILD_NUMBER="$2"; shift 2 ;;
     *) app_store_die "unknown argument: $1" ;;
@@ -32,8 +35,9 @@ done
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || app_store_die "version is invalid"
 [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]] || app_store_die "build number is invalid"
 "$ROOT_DIR/script/lib/validate_public_https_url.sh" "${CLASP_PRIVACY_POLICY_URL:-}" >/dev/null
-if [[ -n "$PACKAGE" || -n "$INSTALLER_IDENTITY" ]]; then
-  [[ -f "$PACKAGE" && "$PACKAGE" == *.pkg && -n "$INSTALLER_IDENTITY" ]] \
+if [[ -n "$PACKAGE" || -n "$INSTALLER_IDENTITY" || -n "$INSTALLER_CERTIFICATE_SHA256" ]]; then
+  [[ -f "$PACKAGE" && "$PACKAGE" == *.pkg && -n "$INSTALLER_IDENTITY" \
+    && -n "$INSTALLER_CERTIFICATE_SHA256" ]] \
     || app_store_die "package and exact installer identity must be supplied together"
 fi
 
@@ -43,7 +47,8 @@ fi
   --team-id "$TEAM_ID" \
   --app-id-prefix "$APP_ID_PREFIX" \
   --entitlements "$ROOT_DIR/release/Clasp.app-store.entitlements" \
-  --application-identity "$APPLICATION_IDENTITY"
+  --application-identity "$APPLICATION_IDENTITY" \
+  --application-certificate-sha256 "$APPLICATION_CERTIFICATE_SHA256"
 
 INFO="$APP/Contents/Info.plist"
 BIN="$APP/Contents/MacOS/$CLASP_APP_NAME"
@@ -113,6 +118,17 @@ SIGNING_DETAILS="$(codesign -dvvv "$APP" 2>&1)"
 
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/clasp-app-store-validation.XXXXXX")"
 trap 'rm -rf "$TEMP_DIR"' EXIT
+APP_ABSOLUTE="$(cd "$(dirname "$APP")" && pwd -P)/$(basename "$APP")"
+(cd "$TEMP_DIR" && codesign --display --extract-certificates "$APP_ABSOLUTE") >/dev/null 2>&1 \
+  || app_store_die "could not extract the application signing certificate"
+[[ -f "$TEMP_DIR/codesign0" ]] \
+  || app_store_die "application signing leaf certificate is missing"
+APPLICATION_SIGNING_CERTIFICATE_SHA256="$(shasum -a 256 \
+  "$TEMP_DIR/codesign0" | awk '{print toupper($1)}')"
+EXPECTED_APPLICATION_CERTIFICATE_SHA256="$(app_store_uppercase_sha256 \
+  "$APPLICATION_CERTIFICATE_SHA256")"
+[[ "$APPLICATION_SIGNING_CERTIFICATE_SHA256" == "$EXPECTED_APPLICATION_CERTIFICATE_SHA256" ]] \
+  || app_store_die "application signature certificate fingerprint mismatch"
 SIGNED_ENTITLEMENTS="$TEMP_DIR/signed-entitlements.plist"
 codesign --display --entitlements - --xml "$APP" >"$SIGNED_ENTITLEMENTS" 2>/dev/null
 plutil -lint "$SIGNED_ENTITLEMENTS" >/dev/null
@@ -131,13 +147,10 @@ signed_entitlement() {
   || app_store_die "signed distribution app permits debugger attachment"
 
 if [[ -n "$PACKAGE" ]]; then
-  app_store_require_identity installer "$INSTALLER_IDENTITY"
-  PACKAGE_SIGNATURE="$TEMP_DIR/package-signature.txt"
-  pkgutil --check-signature "$PACKAGE" 2>&1 | tee "$PACKAGE_SIGNATURE"
-  grep -F "Status: signed by a certificate trusted by macOS" "$PACKAGE_SIGNATURE" >/dev/null \
-    || app_store_die "installer package signature is not trusted"
-  grep -F "1. $INSTALLER_IDENTITY" "$PACKAGE_SIGNATURE" >/dev/null \
-    || app_store_die "installer package does not use the exact requested identity"
+  app_store_require_identity_certificate installer "$INSTALLER_IDENTITY" "$INSTALLER_CERTIFICATE_SHA256"
+  app_store_verify_package_signature \
+    "$PACKAGE" "$INSTALLER_IDENTITY" "$INSTALLER_CERTIFICATE_SHA256" \
+    || app_store_die "installer package signature, identity, or certificate fingerprint is invalid"
   PAYLOAD_FILES="$TEMP_DIR/package-payload.txt"
   pkgutil --payload-files "$PACKAGE" >"$PAYLOAD_FILES"
   grep -Eq '(^|/)Clasp\.app/Contents/MacOS/Clasp$' "$PAYLOAD_FILES" \
