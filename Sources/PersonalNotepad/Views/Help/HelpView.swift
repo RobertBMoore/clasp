@@ -97,15 +97,17 @@ struct HelpView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                HelpSection(title: "Formatted Editing & Markdown", symbol: "textformat") {
-                    Text("Clasp preserves common copied styles: headings, bold, italic, underline, strikethrough, lists, inline code, and safe web or email links.")
-                    Text("Use the Formatted / Markdown switch above a note. Formatted mode has controls for paragraph style, bold, italic, underline, bulleted and numbered lists, and links. Markdown mode exposes the exact portable source Clasp stores.")
-                    Text("Font families, exact sizes, colors, page layouts, remote images, and active HTML are intentionally not imported. This keeps notes portable and prevents copied HTML from loading remote resources.")
+                HelpSection(title: "Page / Markdown Editing", symbol: "textformat") {
+                    Text("Use the Page / Markdown switch above a note. Page mode styles the same canonical Markdown source in place; Markdown mode exposes that source directly. Edits in either view update one portable note—there is no hidden rich-text copy.")
+                    Text("Page mode recognizes common AI-generated Markdown: headings, bold, italic, strikethrough, links, bulleted and numbered lists, checklists, block quotes, inline and fenced code, and horizontal rules. Unknown syntax remains intact as source text.")
+                    Text("Exceptionally large notes stay fully editable and source-exact. Page keeps the selected base typography while reducing live semantic decoration so typing and mode changes remain responsive.")
+                    Text("Open Settings › Documents for Balanced, Compact, Spacious, and Technical presets, or adjust typeface, text size, line height, paragraph gap, and line length. These presentation settings stay outside the Markdown file.")
+                    Text("Copied RTF and HTML are handled separately. Clasp keeps supported structure and safe web or email links, but sanitizes copied HTML by stripping active and resource-loading elements. The editor never executes embedded HTML or fetches remote content.")
                 }
 
                 HelpSection(title: "Appearance", symbol: AppIcon.Utility.appearance) {
                     Text("Open Clasp Settings and choose Appearance: System, Light, or Dark. System is the default and follows your Mac automatically; Light and Dark keep Clasp in the selected mode.")
-                    Text("The formatted editor uses adaptive color, Apple’s reading-focused system serif, and comfortable line spacing in every appearance.")
+                    Text("Page mode uses adaptive macOS colors and your Documents typography settings in every appearance.")
                 }
 
                 HelpSection(title: "Data locations", symbol: "folder") {

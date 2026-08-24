@@ -5,10 +5,15 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VALIDATOR="$ROOT_DIR/script/lib/validate_app_store_profile_payload.sh"
 SIGNED_VALIDATOR="$ROOT_DIR/script/validate_app_store_profile.sh"
 PAYLOAD_VALIDATOR="$ROOT_DIR/script/lib/verify_packaged_app_payload.sh"
+COMMON="$ROOT_DIR/script/lib/app_store_common.sh"
 FIXTURE="$ROOT_DIR/script/tests/fixtures/app-store-profile-valid.plist"
 ENTITLEMENTS="$ROOT_DIR/release/Clasp.app-store.entitlements"
+METADATA="$ROOT_DIR/release/AppStore/METADATA_DRAFT.md"
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/clasp-app-store-tests.XXXXXX")"
 trap 'rm -rf "$TEMP_DIR"' EXIT
+# shellcheck source=../lib/app_store_common.sh
+# shellcheck disable=SC1091
+source "$COMMON"
 
 validate_payload() {
   "$VALIDATOR" \
@@ -30,6 +35,29 @@ expect_failure() {
 
 plutil -lint "$FIXTURE" "$ENTITLEMENTS" >/dev/null
 validate_payload "$FIXTURE" >/dev/null
+grep -F 'selected-content capture through macOS Services' "$METADATA" >/dev/null
+grep -F 'omits Accessibility-assisted selection shortcuts' "$METADATA" >/dev/null
+if grep -F 'selection capture permissions' "$METADATA" >/dev/null; then
+  echo "App Store review notes still describe a permission flow absent from the Store build" >&2
+  exit 1
+fi
+
+SAFE_APP_STORE_SYMBOLS=$'                 U _NSAccessibilityPostNotification\n0000000100001000 T _$s15PersonalNotepad24LocalConfirmationPresenterC'
+if app_store_symbol_list_contains_selection_capture "$SAFE_APP_STORE_SYMBOLS"; then
+  echo "ordinary UI accessibility symbols must remain allowed" >&2
+  exit 1
+fi
+for forbidden_symbol in \
+  _CGPreflightPostEventAccess \
+  _CGRequestPostEventAccess \
+  _CGEventCreateKeyboardEvent \
+  _CGEventPost \
+  SelectionCaptureService; do
+  if ! app_store_symbol_list_contains_selection_capture "                 U $forbidden_symbol"; then
+    echo "selection-capture symbol was not rejected: $forbidden_symbol" >&2
+    exit 1
+  fi
+done
 
 BAD_APP_ID="$TEMP_DIR/bad-app-id.plist"
 cp "$FIXTURE" "$BAD_APP_ID"

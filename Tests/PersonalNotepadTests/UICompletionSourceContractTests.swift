@@ -95,9 +95,28 @@ final class UICompletionSourceContractTests: XCTestCase {
         XCTAssertTrue(bus.contains("static func takeMainNoteRequests()"))
     }
 
-    func testHelpAbbreviatesPrivateHomeDirectoryPaths() throws {
+    func testHelpUsesTheDistributionAwareApplicationSupportPath() throws {
         let help = try source(at: "Sources/PersonalNotepad/Views/Help/HelpView.swift")
+        XCTAssertTrue(help.contains("AppPaths.applicationSupportDirectory.path(percentEncoded: false)"))
         XCTAssertTrue(help.contains(".abbreviatingWithTildeInPath"))
+        XCTAssertTrue(help.contains("DistributionCapabilities.isAppStoreBuild"))
+        XCTAssertFalse(help.contains("~/Library/Application Support/Personal Notepad"))
+    }
+
+    func testPanelGrantedSecurityScopeIsBalancedAtTheAsyncOperationBoundary() throws {
+        let panel = try source(at: "Sources/PersonalNotepad/Services/FilePanelService.swift")
+        XCTAssertFalse(panel.contains("startAccessingSecurityScopedResource"))
+        XCTAssertTrue(panel.contains("url.stopAccessingSecurityScopedResource()"))
+        XCTAssertTrue(panel.contains("DistributionCapabilities.isAppStoreBuild"))
+
+        let backup = try source(at: "Sources/PersonalNotepad/Views/Help/VaultBackupView.swift")
+        XCTAssertEqual(
+            backup.components(separatedBy: "FilePanelService.releaseAccess(to: url)").count - 1,
+            2,
+            "Export and import must each release their panel-granted URL exactly once"
+        )
+        XCTAssertTrue(backup.contains("defer {\n                    isExporting = false"))
+        XCTAssertTrue(backup.contains("pendingImportURL = nil\n        FilePanelService.releaseAccess(to: url)"))
     }
 
     func testVaultNoteAccessibilitySummaryInterpolatesItsContentType() throws {

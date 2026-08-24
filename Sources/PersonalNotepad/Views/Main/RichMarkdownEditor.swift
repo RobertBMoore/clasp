@@ -2,15 +2,24 @@ import AppKit
 import SwiftUI
 
 enum RichEditorCommand: Equatable {
-    case bold
-    case italic
-    case underline
     case body
     case heading1
     case heading2
+    case heading3
+    case heading4
+    case heading5
+    case heading6
+    case bold
+    case italic
+    case strikethrough
+    case inlineCode
+    case link(String)
     case bulletList
     case numberedList
-    case link(String)
+    case checklist
+    case blockquote
+    case fencedCode
+    case horizontalRule
 }
 
 struct RichEditorCommandToken: Equatable {
@@ -18,39 +27,120 @@ struct RichEditorCommandToken: Equatable {
     let command: RichEditorCommand
 }
 
+@MainActor
+private final class MarkdownPageTextView: NSTextView {
+    private var maximumPageWidth: CGFloat = DocumentStyle.appDefault.maxPageWidth
+    private var pageHorizontalPadding: CGFloat = DocumentStyle.appDefault.pageHorizontalPadding
+    private var sourceIsVisible = false
+
+    func configurePage(style: DocumentStyle, showsSource: Bool) {
+        maximumPageWidth = style.maxPageWidth
+        pageHorizontalPadding = style.pageHorizontalPadding
+        sourceIsVisible = showsSource
+        updateResponsiveInsets()
+        needsDisplay = true
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        updateResponsiveInsets()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if !sourceIsVisible {
+            let page = pageRect
+            NSGraphicsContext.saveGraphicsState()
+            let shadow = NSShadow()
+            shadow.shadowColor = NSColor.shadowColor.withAlphaComponent(0.16)
+            shadow.shadowBlurRadius = 12
+            shadow.shadowOffset = NSSize(width: 0, height: -2)
+            shadow.set()
+            NSColor.textBackgroundColor.setFill()
+            NSBezierPath(roundedRect: page, xRadius: 12, yRadius: 12).fill()
+            NSGraphicsContext.restoreGraphicsState()
+
+            NSColor.separatorColor.withAlphaComponent(0.52).setStroke()
+            let border = NSBezierPath(roundedRect: page.insetBy(dx: 0.5, dy: 0.5), xRadius: 12, yRadius: 12)
+            border.lineWidth = 1
+            border.stroke()
+        }
+        super.draw(dirtyRect)
+    }
+
+    private var pageRect: NSRect {
+        let sideMargin: CGFloat = 12
+        let available = max(0, bounds.width - sideMargin * 2)
+        let width = min(maximumPageWidth, available)
+        return NSRect(x: (bounds.width - width) / 2, y: 6, width: width, height: max(0, bounds.height - 12))
+    }
+
+    private func updateResponsiveInsets() {
+        if sourceIsVisible {
+            if textContainerInset != NSSize(width: 12, height: 18) {
+                textContainerInset = NSSize(width: 12, height: 18)
+            }
+            return
+        }
+        let page = pageRect
+        let horizontal = max(12, page.minX + min(pageHorizontalPadding, max(12, page.width * 0.2)))
+        let inset = NSSize(width: horizontal, height: 30)
+        if textContainerInset != inset { textContainerInset = inset }
+    }
+}
+
+/// A source-backed Markdown editor. `NSTextView.string` and `markdown` always contain
+/// the same raw source; Page mode is implemented exclusively with temporary TextKit
+/// attributes and never by round-tripping an attributed document through a serializer.
 struct RichMarkdownEditor: NSViewRepresentable {
     @Binding var markdown: String
     let command: RichEditorCommandToken?
+    let style: DocumentStyle
+    let showsSource: Bool
+
+    init(
+        markdown: Binding<String>,
+        command: RichEditorCommandToken?,
+        style: DocumentStyle = .appDefault,
+        showsSource: Bool = false
+    ) {
+        _markdown = markdown
+        self.command = command
+        self.style = style
+        self.showsSource = showsSource
+    }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(markdown: $markdown)
+        Coordinator(markdown: $markdown, style: style, showsSource: showsSource)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
 
-        let textView = NSTextView(frame: .zero)
+        let textView = MarkdownPageTextView(frame: .zero)
         textView.delegate = context.coordinator
-        textView.isRichText = true
+        textView.isRichText = false
         textView.importsGraphics = false
         textView.allowsUndo = true
         textView.usesFindBar = true
-        // Untrusted note text must not become an activatable file, FTP, or
-        // custom-scheme URL outside the shared external-link allowlist.
         textView.isAutomaticLinkDetectionEnabled = false
         textView.isAutomaticDataDetectionEnabled = false
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isAutomaticSpellingCorrectionEnabled = false
         textView.isContinuousSpellCheckingEnabled = true
         textView.isGrammarCheckingEnabled = true
         textView.drawsBackground = false
         textView.insertionPointColor = .labelColor
         textView.linkTextAttributes = [
             .foregroundColor: NSColor.linkColor,
-            .underlineStyle: NSUnderlineStyle.single.rawValue
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
         ]
-        textView.textContainerInset = NSSize(width: 8, height: 14)
+        textView.configurePage(style: style, showsSource: showsSource)
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width]
@@ -58,51 +148,107 @@ struct RichMarkdownEditor: NSViewRepresentable {
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
-        textView.typingAttributes = [
-            .font: MarkdownRichTextCodec.bodyFont,
-            .foregroundColor: NSColor.labelColor,
-            .paragraphStyle: MarkdownRichTextCodec.bodyParagraphStyle()
-        ]
-        textView.setAccessibilityLabel("Formatted note body")
-        textView.textStorage?.setAttributedString(MarkdownRichTextCodec.attributedString(from: markdown))
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.string = markdown
+        textView.setAccessibilityLabel(showsSource ? "Markdown source" : "Document page")
+
         scrollView.documentView = textView
         context.coordinator.textView = textView
+        context.coordinator.scrollView = scrollView
         context.coordinator.lastRenderedMarkdown = markdown
+        context.coordinator.requestPresentation(
+            to: textView,
+            preservingViewport: false,
+            configurationChanged: true
+        )
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NSTextView else { return }
-        context.coordinator.markdown = $markdown
+        let coordinator = context.coordinator
+        coordinator.markdown = $markdown
+        coordinator.scrollView = scrollView
         textView.insertionPointColor = .labelColor
 
-        if context.coordinator.lastRenderedMarkdown != markdown {
-            let selection = textView.selectedRange()
-            textView.textStorage?.setAttributedString(MarkdownRichTextCodec.attributedString(from: markdown))
-            textView.setSelectedRange(NSRange(location: min(selection.location, textView.string.utf16.count), length: 0))
-            context.coordinator.lastRenderedMarkdown = markdown
+        let resolvedStyle = MarkdownEditorPresentationStyle(style)
+        let presentationChanged = resolvedStyle != coordinator.style || showsSource != coordinator.showsSource
+        coordinator.style = resolvedStyle
+        coordinator.showsSource = showsSource
+        (textView as? MarkdownPageTextView)?.configurePage(style: style, showsSource: showsSource)
+        textView.setAccessibilityLabel(showsSource ? "Markdown source" : "Document page")
+
+        if !MarkdownSourceIdentity.exactlyEqual(textView.string, markdown) {
+            coordinator.replaceFromBinding(markdown, in: textView)
+        } else if presentationChanged {
+            coordinator.requestPresentation(
+                to: textView,
+                preservingViewport: true,
+                configurationChanged: true
+            )
         }
 
-        if let command, command.id != context.coordinator.lastCommandID {
-            context.coordinator.lastCommandID = command.id
-            context.coordinator.apply(command.command, to: textView)
+        if let command, command.id != coordinator.lastCommandID {
+            coordinator.lastCommandID = command.id
+            coordinator.apply(command.command, to: textView)
         }
+    }
+
+    static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
+        guard let textView = scrollView.documentView as? NSTextView else { return }
+        coordinator.cancelPendingPresentation()
+        MarkdownEditorStatePurger.purge(textView)
+        textView.delegate = nil
+        coordinator.textView = nil
+        coordinator.scrollView = nil
+        coordinator.lastRenderedMarkdown = ""
     }
 
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var markdown: Binding<String>
         weak var textView: NSTextView?
+        weak var scrollView: NSScrollView?
         var lastRenderedMarkdown = ""
         var lastCommandID: UUID?
+        var style: MarkdownEditorPresentationStyle
+        var showsSource: Bool
 
-        init(markdown: Binding<String>) {
+        private var isProgrammaticChange = false
+        private var lastActiveParagraph = NSRange(location: NSNotFound, length: 0)
+        private var pendingPresentation: Task<Void, Never>?
+        private var hasSemanticPresentation = false
+
+        /// Small and typical notes update their semantic styling inline. Long
+        /// documents debounce the expensive full TextKit pass so typing and
+        /// Page/Markdown switching remain responsive.
+        private static let immediatePresentationUTF16Length = 32_000
+        private static let presentationDebounceNanoseconds: UInt64 = 120_000_000
+
+        init(markdown: Binding<String>, style: DocumentStyle, showsSource: Bool) {
             self.markdown = markdown
+            self.style = MarkdownEditorPresentationStyle(style)
+            self.showsSource = showsSource
         }
 
         func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
-            synchronize(textView)
+            guard !isProgrammaticChange, let textView = notification.object as? NSTextView else { return }
+            // TextKit's plain string is the persistence format. Presentation attributes
+            // are intentionally ignored so unknown Markdown survives byte-for-byte.
+            let source = textView.string
+            lastRenderedMarkdown = source
+            if !MarkdownSourceIdentity.exactlyEqual(markdown.wrappedValue, source) { markdown.wrappedValue = source }
+            requestPresentation(to: textView, preservingViewport: true, configurationChanged: false)
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard !showsSource,
+                  !isProgrammaticChange,
+                  let textView = notification.object as? NSTextView else { return }
+            let paragraph = activeParagraphRange(in: textView)
+            guard paragraph != lastActiveParagraph else { return }
+            lastActiveParagraph = paragraph
+            requestPresentation(to: textView, preservingViewport: true, configurationChanged: false)
         }
 
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
@@ -114,203 +260,201 @@ struct RichMarkdownEditor: NSViewRepresentable {
             } else {
                 isAllowed = false
             }
-            // Returning true consumes unsafe/unknown links; false lets AppKit
-            // perform its normal action only for an allowlisted destination.
+            // Consume unsafe or unknown destinations. AppKit may open only the
+            // shared allowlist (http, https, and mailto).
             return !isAllowed
         }
 
+        func replaceFromBinding(_ source: String, in textView: NSTextView) {
+            guard let delta = MarkdownTextDelta.between(textView.string, and: source),
+                  let storage = textView.textStorage else { return }
+            let selection = delta.mapping(textView.selectedRange())
+            let viewport = scrollView?.contentView.bounds.origin
+
+            isProgrammaticChange = true
+            let undoManager = textView.undoManager
+            undoManager?.disableUndoRegistration()
+            storage.replaceCharacters(in: delta.range, with: delta.replacement)
+            undoManager?.enableUndoRegistration()
+            textView.setSelectedRange(clamped(selection, to: storage.length))
+            lastRenderedMarkdown = source
+            isProgrammaticChange = false
+            requestPresentation(to: textView, preservingViewport: true, configurationChanged: false)
+
+            if let viewport { restoreViewport(viewport, in: textView) }
+        }
+
         func apply(_ command: RichEditorCommand, to textView: NSTextView) {
-            switch command {
-            case .bold:
-                toggleFontTrait(.boldFontMask, symbolicTrait: .bold, in: textView)
-            case .italic:
-                toggleItalic(in: textView)
-            case .underline:
-                toggleUnderline(in: textView)
-            case .body:
-                applyParagraphFont(MarkdownRichTextCodec.bodyFont, to: textView)
-            case .heading1:
-                applyParagraphFont(MarkdownRichTextCodec.readingFont(ofSize: 26, weight: .bold), to: textView)
-            case .heading2:
-                applyParagraphFont(MarkdownRichTextCodec.readingFont(ofSize: 22, weight: .bold), to: textView)
-            case .bulletList:
-                toggleList(prefix: "•\t", matching: #"^(?:•[\t ]|[-*] )"#, in: textView)
-            case .numberedList:
-                toggleList(prefix: "1.\t", matching: #"^\d+\.[\t ]"#, in: textView)
-            case .link(let destination):
-                applyLink(destination, to: textView)
+            let originalSource = textView.string
+            let originalSelection = textView.selectedRange()
+            let result = MarkdownSourceCommandTransformer.applying(
+                command,
+                to: originalSource,
+                selection: originalSelection
+            )
+            guard !MarkdownSourceIdentity.exactlyEqual(result.source, originalSource),
+                  let delta = MarkdownTextDelta.between(originalSource, and: result.source),
+                  textView.shouldChangeText(in: delta.range, replacementString: delta.replacement),
+                  let storage = textView.textStorage else {
+                textView.window?.makeFirstResponder(textView)
+                return
             }
+
+            let viewport = scrollView?.contentView.bounds.origin
+            isProgrammaticChange = true
+            storage.replaceCharacters(in: delta.range, with: delta.replacement)
+            textView.setSelectedRange(clamped(result.selection, to: storage.length))
             textView.didChangeText()
-            synchronize(textView)
+            lastRenderedMarkdown = result.source
+            if !MarkdownSourceIdentity.exactlyEqual(markdown.wrappedValue, result.source) {
+                markdown.wrappedValue = result.source
+            }
+            isProgrammaticChange = false
+            requestPresentation(to: textView, preservingViewport: true, configurationChanged: false)
+
+            if let viewport { restoreViewport(viewport, in: textView) }
             textView.window?.makeFirstResponder(textView)
         }
 
-        private func synchronize(_ textView: NSTextView) {
-            let updated = MarkdownRichTextCodec.markdown(from: textView.attributedString())
-            lastRenderedMarkdown = updated
-            if markdown.wrappedValue != updated { markdown.wrappedValue = updated }
-        }
-
-        private func applyParagraphFont(_ font: NSFont, to textView: NSTextView) {
-            let range = (textView.string as NSString).lineRange(for: textView.selectedRange())
-            textView.textStorage?.addAttribute(.font, value: font, range: range)
-            textView.typingAttributes[.font] = font
-        }
-
-        private func toggleFontTrait(
-            _ fontTrait: NSFontTraitMask,
-            symbolicTrait: NSFontDescriptor.SymbolicTraits,
-            in textView: NSTextView
+        func applyPresentation(
+            to textView: NSTextView,
+            preservingViewport: Bool,
+            includesSemantics: Bool = true
         ) {
-            guard let storage = textView.textStorage else { return }
-            let selection = textView.selectedRange()
-            if selection.length == 0 {
-                let current = textView.typingAttributes[.font] as? NSFont ?? MarkdownRichTextCodec.bodyFont
-                let hasTrait = current.fontDescriptor.symbolicTraits.contains(symbolicTrait)
-                textView.typingAttributes[.font] = hasTrait
-                    ? NSFontManager.shared.convert(current, toNotHaveTrait: fontTrait)
-                    : NSFontManager.shared.convert(current, toHaveTrait: fontTrait)
-                return
-            }
+            guard let storage = textView.textStorage, !textView.hasMarkedText() else { return }
+            let selection = clamped(textView.selectedRange(), to: storage.length)
+            let viewport = preservingViewport ? scrollView?.contentView.bounds.origin : nil
+            let isActivelyEditing = textView.window?.firstResponder === textView
+            let activeParagraph = showsSource || !isActivelyEditing ? nil : activeParagraphRange(in: textView)
+            lastActiveParagraph = activeParagraph ?? NSRange(location: NSNotFound, length: 0)
 
-            var everyRunHasTrait = true
-            storage.enumerateAttribute(.font, in: selection) { value, _, _ in
-                let font = value as? NSFont ?? MarkdownRichTextCodec.bodyFont
-                if !font.fontDescriptor.symbolicTraits.contains(symbolicTrait) { everyRunHasTrait = false }
-            }
-            storage.enumerateAttribute(.font, in: selection) { value, range, _ in
-                let font = value as? NSFont ?? MarkdownRichTextCodec.bodyFont
-                let converted = everyRunHasTrait
-                    ? NSFontManager.shared.convert(font, toNotHaveTrait: fontTrait)
-                    : NSFontManager.shared.convert(font, toHaveTrait: fontTrait)
-                storage.addAttribute(.font, value: converted, range: range)
-            }
-        }
-
-        private func toggleItalic(in textView: NSTextView) {
-            guard let storage = textView.textStorage else { return }
-            let selection = textView.selectedRange()
-            if selection.length == 0 {
-                var attributes = textView.typingAttributes
-                let font = attributes[.font] as? NSFont ?? MarkdownRichTextCodec.bodyFont
-                let obliqueness = (attributes[.obliqueness] as? NSNumber)?.doubleValue ?? 0
-                let isItalic = font.fontDescriptor.symbolicTraits.contains(.italic) || abs(obliqueness) > 0.001
-                if isItalic {
-                    attributes[.font] = NSFontManager.shared.convert(font, toNotHaveTrait: .italicFontMask)
-                    attributes.removeValue(forKey: .obliqueness)
-                } else {
-                    let italicFont = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
-                    if italicFont.fontDescriptor.symbolicTraits.contains(.italic) {
-                        attributes[.font] = italicFont
-                    } else {
-                        attributes[.obliqueness] = MarkdownRichTextCodec.italicObliqueness
-                    }
-                }
-                textView.typingAttributes = attributes
-                return
-            }
-
-            var everyRunIsItalic = true
-            storage.enumerateAttributes(in: selection) { attributes, _, _ in
-                let font = attributes[.font] as? NSFont ?? MarkdownRichTextCodec.bodyFont
-                let obliqueness = (attributes[.obliqueness] as? NSNumber)?.doubleValue ?? 0
-                if !font.fontDescriptor.symbolicTraits.contains(.italic) && abs(obliqueness) <= 0.001 {
-                    everyRunIsItalic = false
-                }
-            }
-            storage.enumerateAttributes(in: selection) { attributes, range, _ in
-                let font = attributes[.font] as? NSFont ?? MarkdownRichTextCodec.bodyFont
-                if everyRunIsItalic {
-                    storage.addAttribute(
-                        .font,
-                        value: NSFontManager.shared.convert(font, toNotHaveTrait: .italicFontMask),
-                        range: range
-                    )
-                    storage.removeAttribute(.obliqueness, range: range)
-                } else {
-                    let italicFont = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
-                    if italicFont.fontDescriptor.symbolicTraits.contains(.italic) {
-                        storage.addAttribute(.font, value: italicFont, range: range)
-                        storage.removeAttribute(.obliqueness, range: range)
-                    } else {
-                        storage.addAttribute(
-                            .obliqueness,
-                            value: MarkdownRichTextCodec.italicObliqueness,
-                            range: range
-                        )
-                    }
-                }
-            }
-        }
-
-        private func toggleUnderline(in textView: NSTextView) {
-            guard let storage = textView.textStorage else { return }
-            let selection = textView.selectedRange()
-            if selection.length == 0 {
-                let current = textView.typingAttributes[.underlineStyle] as? Int ?? 0
-                textView.typingAttributes[.underlineStyle] = current == 0 ? NSUnderlineStyle.single.rawValue : 0
-                return
-            }
-            var everyRunUnderlined = true
-            storage.enumerateAttribute(.underlineStyle, in: selection) { value, _, _ in
-                if (value as? Int ?? 0) == 0 { everyRunUnderlined = false }
-            }
-            storage.addAttribute(
-                .underlineStyle,
-                value: everyRunUnderlined ? 0 : NSUnderlineStyle.single.rawValue,
-                range: selection
+            isProgrammaticChange = true
+            MarkdownSourcePresentation.apply(
+                to: storage,
+                style: style,
+                showsSource: showsSource,
+                activeParagraphRange: activeParagraph,
+                includesSemantics: includesSemantics
             )
+            hasSemanticPresentation = !showsSource
+                && includesSemantics
+                && storage.length <= MarkdownSourcePresentation.maximumParsedUTF16Length
+            textView.setSelectedRange(selection)
+            textView.typingAttributes = [
+                .font: showsSource ? style.sourceFont : style.bodyFont,
+                .foregroundColor: NSColor.labelColor,
+            ]
+            isProgrammaticChange = false
+
+            if let viewport { restoreViewport(viewport, in: textView) }
         }
 
-        private func applyLink(_ destination: String, to textView: NSTextView) {
-            guard MarkdownRichTextCodec.isSafeLink(destination), let url = URL(string: destination) else { return }
-            let selection = textView.selectedRange()
-            if selection.length == 0 {
-                let linked = NSAttributedString(
-                    string: destination,
-                    attributes: [.link: url, .foregroundColor: NSColor.linkColor, .underlineStyle: NSUnderlineStyle.single.rawValue]
-                )
-                textView.textStorage?.insert(linked, at: selection.location)
-                textView.setSelectedRange(NSRange(location: selection.location + linked.length, length: 0))
-            } else {
-                textView.textStorage?.addAttributes(
-                    [.link: url, .foregroundColor: NSColor.linkColor, .underlineStyle: NSUnderlineStyle.single.rawValue],
-                    range: selection
-                )
-            }
-        }
+        func requestPresentation(
+            to textView: NSTextView,
+            preservingViewport: Bool,
+            configurationChanged: Bool
+        ) {
+            pendingPresentation?.cancel()
+            pendingPresentation = nil
+            guard let storage = textView.textStorage, !textView.hasMarkedText() else { return }
 
-        private func toggleList(prefix: String, matching pattern: String, in textView: NSTextView) {
-            guard let storage = textView.textStorage else { return }
-            let fullString = textView.string as NSString
-            let selectedLines = fullString.lineRange(for: textView.selectedRange())
-            var lines: [(location: Int, prefixRange: NSRange?)] = []
-            var cursor = selectedLines.location
-
-            while cursor < NSMaxRange(selectedLines) {
-                let lineRange = fullString.lineRange(for: NSRange(location: cursor, length: 0))
-                let line = fullString.substring(with: lineRange)
-                let localRange = (line as NSString).range(of: pattern, options: .regularExpression)
-                let prefixRange = localRange.location == NSNotFound ? nil : NSRange(
-                    location: lineRange.location + localRange.location,
-                    length: localRange.length
-                )
-                lines.append((lineRange.location, prefixRange))
-                cursor = NSMaxRange(lineRange)
-            }
-
-            let allMatching = !lines.isEmpty && lines.allSatisfy { item in
-                guard let prefixRange = item.prefixRange else { return false }
-                return fullString.substring(with: prefixRange).hasPrefix(String(prefix.first!))
-            }
-
-            for line in lines.reversed() {
-                if let range = line.prefixRange { storage.deleteCharacters(in: range) }
-                if !allMatching {
-                    storage.insert(NSAttributedString(string: prefix, attributes: textView.typingAttributes), at: line.location)
+            if showsSource {
+                if configurationChanged {
+                    applyPresentation(
+                        to: textView,
+                        preservingViewport: preservingViewport,
+                        includesSemantics: false
+                    )
                 }
+                return
+            }
+
+            if storage.length > MarkdownSourcePresentation.maximumParsedUTF16Length {
+                if configurationChanged || hasSemanticPresentation {
+                    applyPresentation(
+                        to: textView,
+                        preservingViewport: preservingViewport,
+                        includesSemantics: false
+                    )
+                }
+                return
+            }
+
+            if storage.length <= Self.immediatePresentationUTF16Length {
+                applyPresentation(to: textView, preservingViewport: preservingViewport)
+                return
+            }
+
+            // Apply the selected typeface and layout immediately when modes or
+            // settings change. Semantic Markdown styling follows once editing
+            // has been idle briefly; rapid keystrokes continuously cancel it.
+            if configurationChanged {
+                applyPresentation(
+                    to: textView,
+                    preservingViewport: preservingViewport,
+                    includesSemantics: false
+                )
+            }
+
+            let expectedSource = textView.string
+            pendingPresentation = Task { @MainActor [weak self, weak textView] in
+                do {
+                    try await Task.sleep(nanoseconds: Self.presentationDebounceNanoseconds)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled,
+                      let self,
+                      let textView,
+                      !self.showsSource,
+                      MarkdownSourceIdentity.exactlyEqual(textView.string, expectedSource) else { return }
+                self.applyPresentation(to: textView, preservingViewport: preservingViewport)
+                self.pendingPresentation = nil
             }
         }
+
+        func cancelPendingPresentation() {
+            pendingPresentation?.cancel()
+            pendingPresentation = nil
+        }
+
+        private func activeParagraphRange(in textView: NSTextView) -> NSRange {
+            let source = textView.string as NSString
+            guard source.length > 0 else { return NSRange(location: 0, length: 0) }
+            let location = min(textView.selectedRange().location, source.length - 1)
+            return source.lineRange(for: NSRange(location: location, length: 0))
+        }
+
+        private func restoreViewport(_ origin: NSPoint, in textView: NSTextView) {
+            guard let scrollView else { return }
+            if let layoutManager = textView.layoutManager, let textContainer = textView.textContainer {
+                layoutManager.ensureLayout(for: textContainer)
+            }
+            let documentHeight = textView.bounds.height
+            let viewportHeight = scrollView.contentView.bounds.height
+            let maximumY = max(0, documentHeight - viewportHeight)
+            scrollView.contentView.scroll(to: NSPoint(x: max(0, origin.x), y: min(max(0, origin.y), maximumY)))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+
+        private func clamped(_ range: NSRange, to length: Int) -> NSRange {
+            let location = max(0, min(range.location, length))
+            return NSRange(location: location, length: max(0, min(range.length, length - location)))
+        }
+    }
+}
+
+@MainActor
+enum MarkdownEditorStatePurger {
+    /// An editor can contain decrypted Vault text. Clear the view and its undo
+    /// history whenever SwiftUI dismantles it so note switches and Vault locks
+    /// cannot leave plaintext recoverable through the window's Undo command.
+    static func purge(_ textView: NSTextView) {
+        textView.breakUndoCoalescing()
+        textView.undoManager?.removeAllActions()
+        textView.textStorage?.setAttributedString(NSAttributedString())
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+        textView.typingAttributes = [:]
     }
 }
 
@@ -332,9 +476,8 @@ struct RichFormattingBar: View {
             }
 
             ViewThatFits(in: .horizontal) {
-                controls(compact: false)
-                controls(compact: true)
-                condensedControls
+                expandedControls
+                compactControls
             }
         }
         .padding(.horizontal, 20)
@@ -342,61 +485,56 @@ struct RichFormattingBar: View {
         .background(.quaternary.opacity(0.25))
     }
 
-    private func controls(compact: Bool) -> some View {
+    private var expandedControls: some View {
         HStack(spacing: 8) {
-            styleMenu(compact: compact)
-
+            styleMenu
             Divider().frame(height: 26)
-            formatButton("Bold", symbol: AppIcon.Editing.bold, command: .bold, compact: compact)
-            formatButton("Italic", symbol: AppIcon.Editing.italic, command: .italic, compact: compact)
-            formatButton("Underline", symbol: AppIcon.Editing.underline, command: .underline, compact: compact)
+            formatButton("Bold", symbol: AppIcon.Editing.bold, command: .bold)
+            formatButton("Italic", symbol: AppIcon.Editing.italic, command: .italic)
+            formatButton("Strike", symbol: "strikethrough", command: .strikethrough)
+            formatButton("Code", symbol: "chevron.left.forwardslash.chevron.right", command: .inlineCode)
             Divider().frame(height: 26)
-            formatButton("Bullets", symbol: AppIcon.Editing.bulletedList, command: .bulletList, compact: compact)
-            formatButton("Numbers", symbol: AppIcon.Editing.numberedList, command: .numberedList, compact: compact)
-            linkButton(compact: compact)
+            listMenu
+            insertMenu
+            linkButton
         }
         .padding(.vertical, 1)
     }
 
-    private var condensedControls: some View {
+    private var compactControls: some View {
         HStack(spacing: 7) {
-            styleMenu(compact: true)
-
+            styleMenu
             Menu {
                 Button("Bold") { send(.bold) }
                 Button("Italic") { send(.italic) }
-                Button("Underline") { send(.underline) }
+                Button("Strikethrough") { send(.strikethrough) }
+                Button("Inline Code") { send(.inlineCode) }
             } label: {
                 Image(systemName: "textformat")
                     .frame(minWidth: 24, minHeight: 26)
             }
             .menuStyle(.borderlessButton)
-            .help("Bold, italic, and underline")
+            .help("Text formatting")
             .accessibilityLabel("Text formatting")
-
-            Menu {
-                Button("Bulleted List") { send(.bulletList) }
-                Button("Numbered List") { send(.numberedList) }
-            } label: {
-                Image(systemName: AppIcon.Editing.bulletedList)
-                    .frame(minWidth: 24, minHeight: 26)
-            }
-            .menuStyle(.borderlessButton)
-            .help("Bulleted and numbered lists")
-            .accessibilityLabel("List formatting")
-
-            linkButton(compact: true)
+            listMenu
+            insertMenu
+            linkButton
         }
         .fixedSize(horizontal: true, vertical: false)
     }
 
-    private func styleMenu(compact: Bool) -> some View {
+    private var styleMenu: some View {
         Menu {
             Button("Body") { send(.body) }
+            Divider()
             Button("Heading 1") { send(.heading1) }
             Button("Heading 2") { send(.heading2) }
+            Button("Heading 3") { send(.heading3) }
+            Button("Heading 4") { send(.heading4) }
+            Button("Heading 5") { send(.heading5) }
+            Button("Heading 6") { send(.heading6) }
         } label: {
-            Label(compact ? "Style" : "Text Style", systemImage: AppIcon.Editing.textStyle)
+            Label("Style", systemImage: AppIcon.Editing.textStyle)
                 .frame(minHeight: 26)
         }
         .menuStyle(.borderlessButton)
@@ -406,36 +544,49 @@ struct RichFormattingBar: View {
         .help("Paragraph style")
     }
 
-    private func formatButton(
-        _ help: String,
-        symbol: String,
-        command: RichEditorCommand,
-        compact: Bool
-    ) -> some View {
-        Button { send(command) } label: {
-            if compact {
-                Image(systemName: symbol)
-                    .frame(minWidth: 24, minHeight: 26)
-            } else {
-                Label(help, systemImage: symbol)
-                    .frame(minHeight: 26)
-            }
+    private var listMenu: some View {
+        Menu {
+            Button("Bulleted List") { send(.bulletList) }
+            Button("Numbered List") { send(.numberedList) }
+            Button("Checklist") { send(.checklist) }
+        } label: {
+            Image(systemName: AppIcon.Editing.bulletedList)
+                .frame(minWidth: 24, minHeight: 26)
         }
-            .buttonStyle(.bordered)
-            .controlSize(.regular)
-            .help(help)
-            .accessibilityLabel(help)
+        .menuStyle(.borderlessButton)
+        .help("Lists")
+        .accessibilityLabel("List formatting")
     }
 
-    private func linkButton(compact: Bool) -> some View {
+    private var insertMenu: some View {
+        Menu {
+            Button("Block Quote") { send(.blockquote) }
+            Button("Code Block") { send(.fencedCode) }
+            Button("Horizontal Rule") { send(.horizontalRule) }
+        } label: {
+            Image(systemName: "plus")
+                .frame(minWidth: 24, minHeight: 26)
+        }
+        .menuStyle(.borderlessButton)
+        .help("Insert Markdown block")
+        .accessibilityLabel("Insert Markdown block")
+    }
+
+    private func formatButton(_ help: String, symbol: String, command: RichEditorCommand) -> some View {
+        Button { send(command) } label: {
+            Image(systemName: symbol)
+                .frame(minWidth: 24, minHeight: 26)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+
+    private var linkButton: some View {
         Button { showingLink.toggle() } label: {
-            if compact {
-                Image(systemName: AppIcon.Editing.link)
-                    .frame(minWidth: 24, minHeight: 26)
-            } else {
-                Label("Link", systemImage: AppIcon.Editing.link)
-                    .frame(minHeight: 26)
-            }
+            Image(systemName: AppIcon.Editing.link)
+                .frame(minWidth: 24, minHeight: 26)
         }
         .buttonStyle(.bordered)
         .controlSize(.regular)
@@ -453,7 +604,7 @@ struct RichFormattingBar: View {
                         .keyboardShortcut(.cancelAction)
                     Button("Apply") { applyLink() }
                         .buttonStyle(.borderedProminent)
-                        .disabled(!MarkdownRichTextCodec.isSafeLink(linkDestination))
+                        .disabled(!ExternalLinkPolicy.allows(linkDestination))
                         .keyboardShortcut(.defaultAction)
                 }
             }
@@ -462,7 +613,7 @@ struct RichFormattingBar: View {
     }
 
     private func applyLink() {
-        guard MarkdownRichTextCodec.isSafeLink(linkDestination) else { return }
+        guard ExternalLinkPolicy.allows(linkDestination) else { return }
         send(.link(linkDestination))
         showingLink = false
     }

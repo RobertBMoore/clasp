@@ -54,6 +54,8 @@ plutil -replace CFBundleExecutable -string "Clasp Visual QA" "$APP/Contents/Info
 plutil -replace CFBundleIdentifier -string "com.robertmoore.personalnotepad.visualqa" "$APP/Contents/Info.plist"
 plutil -replace CFBundleName -string "Clasp Visual QA" "$APP/Contents/Info.plist"
 plutil -replace CFBundleDisplayName -string "Clasp Visual QA" "$APP/Contents/Info.plist"
+plutil -replace CFBundleShortVersionString -string "$CLASP_VERSION" "$APP/Contents/Info.plist"
+plutil -replace CFBundleVersion -string "$CLASP_BUILD_NUMBER" "$APP/Contents/Info.plist"
 plutil -remove NSServices "$APP/Contents/Info.plist"
 plutil -insert CLASPVisualQABuild -bool true "$APP/Contents/Info.plist"
 
@@ -61,6 +63,8 @@ codesign --force --deep --sign - "$APP"
 plutil -lint "$APP/Contents/Info.plist" "$APP/Contents/Resources/PrivacyInfo.xcprivacy" >/dev/null
 codesign --verify --deep --strict --verbose=2 "$APP"
 [[ "$(defaults read "$APP/Contents/Info" CFBundleIdentifier)" == "com.robertmoore.personalnotepad.visualqa" ]]
+[[ "$(defaults read "$APP/Contents/Info" CFBundleShortVersionString)" == "$CLASP_VERSION" ]]
+[[ "$(defaults read "$APP/Contents/Info" CFBundleVersion)" == "$CLASP_BUILD_NUMBER" ]]
 [[ "$(lipo -archs "$APP/Contents/MacOS/Clasp Visual QA")" == "$CLASP_ARCH" ]]
 if find "$APP" -iname '*Sparkle*' -print -quit | grep -q .; then
   echo "visual-QA app unexpectedly contains Sparkle" >&2

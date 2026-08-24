@@ -94,9 +94,12 @@ done
 if otool -L "$BIN" | grep -F 'Sparkle.framework/' >/dev/null; then
   app_store_die "App Store executable unexpectedly links Sparkle"
 fi
-if nm -u "$BIN" | grep -Eq \
-  'CGPreflightPostEventAccess|CGRequestPostEventAccess|CGEventCreateKeyboardEvent|CGEventPost'; then
-  app_store_die "App Store executable contains Accessibility selection-capture symbols"
+app_store_require_command nm
+if ! APP_STORE_SYMBOLS="$(nm "$BIN" 2>&1)"; then
+  app_store_die "could not inspect App Store executable symbols"
+fi
+if app_store_symbol_list_contains_selection_capture "$APP_STORE_SYMBOLS"; then
+  app_store_die "App Store executable contains Accessibility-assisted selection-capture implementation or APIs"
 fi
 
 codesign --verify --deep --strict --verbose=2 "$APP"

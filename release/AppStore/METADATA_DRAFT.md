@@ -37,4 +37,4 @@ notes,notepad,markdown,capture,clipboard,journal,private,vault
 
 ## Review notes draft
 
-Clasp is local-first and has no account. The Mac App Store build contains no Sparkle updater and updates only through the App Store. Regular notes are plaintext Markdown; Vault notes are AES-GCM encrypted, and Clasp authenticates the user before reading its Keychain key. Review instructions for Vault setup, Services, clipboard capture, import/export, and sandbox data migration must be completed against the final signed TestFlight build. The Store build does not request Accessibility access.
+Clasp is local-first and has no account. The Mac App Store build contains no Sparkle updater and updates only through the App Store. Regular notes are plaintext Markdown; Vault notes are AES-GCM encrypted, and Clasp authenticates the user before reading its Keychain key. Review instructions for Vault setup, selected-content capture through macOS Services, clipboard capture, import/export, and sandbox data migration must be completed against the final signed TestFlight build. The Store build omits Accessibility-assisted selection shortcuts and does not request Accessibility access.

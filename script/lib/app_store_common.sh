@@ -9,6 +9,13 @@ app_store_require_command() {
   command -v "$1" >/dev/null 2>&1 || app_store_die "required command is unavailable: $1"
 }
 
+app_store_symbol_list_contains_selection_capture() {
+  local symbols="${1-}"
+  local forbidden_api_pattern='(^|[[:space:]])_?(CGPreflightPostEventAccess|CGRequestPostEventAccess|CGEventCreateKeyboardEvent|CGEventPost)([[:space:]]|$)'
+
+  [[ "$symbols" == *SelectionCaptureService* || "$symbols" =~ $forbidden_api_pattern ]]
+}
+
 app_store_require_single_line() {
   local label="$1" value="$2"
   [[ -n "$value" && "$value" != *$'\n'* && "$value" != *'"'* ]] \

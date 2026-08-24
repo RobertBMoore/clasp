@@ -75,13 +75,17 @@ Classification runs entirely on the Mac with no network access. Clasp recognizes
 
 Vault notes are isolated from Inbox, Pinned, and regular tag filters. While the Vault is unlocked, its active notes also appear in All Notes and All Notes search with a locked-document identity. Trashed Vault notes appear in Trash only while the Vault is unlocked so they can be restored or permanently deleted; locking immediately removes every decrypted Vault title, metadata record, body, and search result from shared views.
 
-## Formatted editing and Markdown
+## Page editing and Markdown
 
-Clasp imports common formatting from copied RTF and sanitized HTML: headings, bold, italic, underline, strikethrough, lists, inline code, and safe `http`, `https`, or `mailto` links. The note editor opens in **Formatted** mode with basic formatting controls. Switch to **Markdown** above the note to view or edit the exact stored source.
+The note editor opens in **Page** mode. **Page / Markdown** are two views of the same canonical Markdown source: Page applies readable typography in place, while Markdown exposes the exact portable source. Edits in either view update that source, with no hidden rich-text copy.
 
-Markdown remains the single source of truth, so formatted and source editing cannot drift into separate copies. Font families, exact sizes, colors, page layout, remote images, scripts, stylesheets, and other active HTML are intentionally discarded. HTML conversion is local and strips resource-loading elements before rendering.
+Page mode recognizes common AI-generated Markdown structures, including headings, bold, italic, strikethrough, links, bulleted and numbered lists, checklists, block quotes, inline and fenced code, and horizontal rules. Unknown Markdown syntax is preserved conservatively as source text instead of being discarded.
 
-The formatted editor uses adaptive macOS text colors and comfortable reading typography. Choose **Clasp › Settings › Appearance** to follow the system setting (the default) or keep Clasp in Light or Dark mode.
+Exceptionally large notes remain fully editable and source-exact. Above Clasp's live semantic-styling limit, Page keeps the selected base typography while reducing semantic decoration so typing and mode changes remain responsive.
+
+Choose **Clasp › Settings › Documents** for Balanced (the default), Compact, Spacious, or Technical presets, or fine-tune the typeface, text size, line height, paragraph gap, and target line length. These presentation preferences are stored outside note files and never add styling to the Markdown. Appearance remains adaptive; choose **Clasp › Settings › Appearance** to follow the Mac or keep Clasp in Light or Dark mode.
+
+Copied RTF and HTML use a separate, local import path. Clasp keeps supported document structure and safe `http`, `https`, or `mailto` links, but sanitizes copied HTML by stripping active and resource-loading elements. The editor does not execute embedded HTML or load remote content.
 
 ## macOS Service
 
@@ -137,6 +141,6 @@ Help includes shortcuts, Service setup, data locations, backup/restore, and the 
 - macOS controls discovery and shortcuts for Services; enabling the two actions is sometimes a one-time System Settings step, and their defaults can be changed there.
 - Local/direct cross-app selection shortcuts require one-time Accessibility approval because Clasp issues a single Copy command to the active app. The App Store build excludes that code; right-click Services require no Accessibility approval.
 - Image capture is limited to 25 MB per image. Source apps control whether their image context menus expose macOS Services; copying the image first is the reliable fallback.
-- There is no sync, collaboration, iPhone/iPad client, full document-layout word processor, non-image attachment support, or secure-delete guarantee on APFS/SSD storage. Clasp does include a focused formatted Markdown editor.
+- There is no sync, collaboration, iPhone/iPad client, full document-layout word processor, non-image attachment support, or secure-delete guarantee on APFS/SSD storage. Clasp does include a focused Page / Markdown editor.
 - Vault encryption protects data at rest. It cannot protect an unlocked Vault from malware, screen capture, memory inspection by a sufficiently privileged process, or a person controlling an already-unlocked Mac.
 - Clipboard managers may retain sensitive values before optional safe clearing occurs, and choosing **Never** leaves the captured value on the system clipboard. Credentials, API keys, and recovery codes are generally better kept in a dedicated password manager.

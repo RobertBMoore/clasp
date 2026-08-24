@@ -3,7 +3,14 @@ import SwiftUI
 struct MainRootView: View {
     let appState: AppState
     @State private var destination: SidebarDestination? = .inbox
+#if CLASP_VISUAL_QA
+    // The separately bundled visual-QA app uses only synthetic, memory-backed
+    // notes. Select the primary fixture deterministically so screenshot review
+    // never depends on driving a real note or persisted navigation state.
     @State private var selectedNoteID: UUID?
+#else
+    @State private var selectedNoteID: UUID?
+#endif
     @State private var query = ""
 
     var body: some View {
@@ -41,6 +48,13 @@ struct MainRootView: View {
             selectedNoteID = nil
             query = ""
         }
+#if CLASP_VISUAL_QA
+        .onChange(of: appState.isLoading) { _, isLoading in
+            guard !isLoading else { return }
+            destination = .inbox
+            selectedNoteID = UUID(uuidString: "11111111-1111-4111-8111-111111111111")
+        }
+#endif
         .onChange(of: appState.isVaultUnlocked) { wasUnlocked, isUnlocked in
             guard wasUnlocked, !isUnlocked else { return }
             selectedNoteID = nil

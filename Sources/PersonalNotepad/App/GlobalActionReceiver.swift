@@ -18,9 +18,11 @@ struct GlobalActionReceiver: View {
                 VaultLockCoordinator.shared.lockHandler = { appState.lockVault() }
                 VaultLockCoordinator.shared.terminationHandler = { await appState.flushAndLockForTermination() }
                 VaultLockCoordinator.shared.start()
+#if !CLASP_VISUAL_QA
                 if !OnboardingPreferences().isComplete {
                     openWindow(id: "onboarding")
                 }
+#endif
             }
             .onReceive(NotificationCenter.default.publisher(for: .openQuickCapture)) { notification in
                 guard GlobalActionBus.claim(notification) else { return }

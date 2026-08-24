@@ -2,7 +2,7 @@ import SwiftUI
 
 struct NoteEditorView: View {
     private enum EditorMode: String, CaseIterable, Identifiable {
-        case formatted = "Formatted"
+        case page = "Page"
         case markdown = "Markdown"
         var id: String { rawValue }
     }
@@ -13,8 +13,15 @@ struct NoteEditorView: View {
     @State private var tagText: String
     @State private var lastEditedAt: Date
     @State private var showPermanentDelete = false
-    @State private var editorMode: EditorMode = .formatted
+    @SceneStorage("clasp.editorMode") private var editorModeRawValue = EditorMode.page.rawValue
     @State private var editorCommand: RichEditorCommandToken?
+    @State private var showsDocumentStyle = false
+    @AppStorage(PreferenceKeys.documentStylePreset) private var documentStylePreset = DocumentStylePreset.balanced.rawValue
+    @AppStorage(PreferenceKeys.documentFontFamily) private var documentFontFamily = DocumentStyle.balanced.fontFamily.rawValue
+    @AppStorage(PreferenceKeys.documentBodyPointSize) private var documentBodyPointSize = DocumentStyle.balanced.bodyPointSize
+    @AppStorage(PreferenceKeys.documentLineHeightMultiplier) private var documentLineHeight = DocumentStyle.balanced.lineHeightMultiplier
+    @AppStorage(PreferenceKeys.documentParagraphSpacing) private var documentParagraphSpacing = DocumentStyle.balanced.paragraphSpacing
+    @AppStorage(PreferenceKeys.documentTargetCharactersPerLine) private var documentTargetCharacters = DocumentStyle.balanced.targetCharactersPerLine
 
     init(note: Note, isVault: Bool, appState: AppState) {
         self.isVault = isVault
@@ -49,22 +56,21 @@ struct NoteEditorView: View {
                 }
             }
 
-            if editorMode == .formatted {
+            if editorMode == .page {
                 RichFormattingBar { command in
                     editorCommand = RichEditorCommandToken(command: command)
                 }
-                RichMarkdownEditor(markdown: $draft.body, command: editorCommand)
-                    .padding(.horizontal, 15)
-                    .padding(.vertical, 4)
-                    .accessibilityLabel("Formatted note body")
             } else {
-                TextEditor(text: $draft.body)
-                    .font(.body.monospaced())
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, 15)
-                    .padding(.vertical, 10)
-                    .accessibilityLabel("Markdown source")
+                markdownSourceBar
             }
+
+            RichMarkdownEditor(
+                markdown: $draft.body,
+                command: editorCommand,
+                style: activeDocumentStyle,
+                showsSource: editorMode == .markdown
+            )
+            .accessibilityLabel(editorMode == .page ? "Document page" : "Markdown source")
 
             if !detectedLinks.isEmpty {
                 Divider()
@@ -162,7 +168,9 @@ struct NoteEditorView: View {
             HStack(spacing: 14) {
                 titleField
                 vaultBadge
+                Spacer(minLength: 8)
                 editorModePicker
+                documentStyleButton
             }
 
             VStack(alignment: .leading, spacing: 12) {
@@ -170,8 +178,11 @@ struct NoteEditorView: View {
                     titleField
                     vaultBadge
                 }
-                editorModePicker
-                    .frame(maxWidth: 260)
+                HStack(spacing: 10) {
+                    editorModePicker
+                    documentStyleButton
+                    Spacer(minLength: 0)
+                }
             }
         }
     }
@@ -180,6 +191,8 @@ struct NoteEditorView: View {
         TextField("Title", text: $draft.title)
             .textFieldStyle(.plain)
             .font(.title2.weight(.semibold))
+            .frame(minWidth: 160)
+            .layoutPriority(1)
             .accessibilityLabel("Note title")
     }
 
@@ -198,15 +211,59 @@ struct NoteEditorView: View {
     }
 
     private var editorModePicker: some View {
-        Picker("Editor mode", selection: $editorMode) {
+        Picker("Editor mode", selection: editorModeBinding) {
             ForEach(EditorMode.allCases) { Text($0.rawValue).tag($0) }
         }
         .pickerStyle(.segmented)
         .controlSize(.large)
         .labelsHidden()
-        .frame(width: 210)
-        .help("Switch between formatted editing and the stored Markdown source")
+        .frame(width: 190)
+        .help("Switch between the document page and its stored Markdown source")
         .accessibilityLabel("Editor mode")
+    }
+
+    private var editorMode: EditorMode {
+        EditorMode(rawValue: editorModeRawValue) ?? .page
+    }
+
+    private var editorModeBinding: Binding<EditorMode> {
+        Binding(
+            get: { editorMode },
+            set: { editorModeRawValue = $0.rawValue }
+        )
+    }
+
+    private var documentStyleButton: some View {
+        Button {
+            showsDocumentStyle.toggle()
+        } label: {
+            Image(systemName: "textformat.size")
+                .frame(width: 20, height: 20)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .help("Document Style")
+        .accessibilityLabel("Document Style")
+        .accessibilityHint("Adjust how Markdown is presented without changing the Markdown")
+        .popover(isPresented: $showsDocumentStyle, arrowEdge: .bottom) {
+            DocumentStylePopover()
+        }
+    }
+
+    private var markdownSourceBar: some View {
+        HStack(spacing: 8) {
+            Label("Markdown Source", systemImage: "chevron.left.forwardslash.chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text("Same document · changes appear in Page instantly")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(.quaternary.opacity(0.25))
+        .accessibilityElement(children: .combine)
     }
 
     private var metadataBar: some View {
@@ -280,6 +337,18 @@ struct NoteEditorView: View {
         return appState.regularNotes.first { $0.id == draft.id }
     }
 
+    private var activeDocumentStyle: DocumentStyle {
+        let preset = DocumentStylePreset(rawValue: documentStylePreset) ?? .balanced
+        return DocumentStyle(
+            preset: preset,
+            fontFamily: DocumentFontFamily(rawValue: documentFontFamily) ?? preset.style.fontFamily,
+            bodyPointSize: documentBodyPointSize,
+            lineHeightMultiplier: documentLineHeight,
+            paragraphSpacing: documentParagraphSpacing,
+            targetCharactersPerLine: documentTargetCharacters
+        )
+    }
+
     private var isPinned: Bool { currentNote?.isPinned ?? false }
     private var isArchived: Bool { currentNote?.isArchived ?? false }
     private var isInInbox: Bool { currentNote?.isInInbox ?? false }
@@ -297,6 +366,168 @@ struct NoteEditorView: View {
             body: note.body,
             tags: note.tags
         )
+    }
+}
+
+private struct DocumentStylePopover: View {
+    @AppStorage(PreferenceKeys.documentStylePreset) private var presetRawValue = DocumentStylePreset.balanced.rawValue
+    @AppStorage(PreferenceKeys.documentFontFamily) private var fontFamilyRawValue = DocumentStyle.balanced.fontFamily.rawValue
+    @AppStorage(PreferenceKeys.documentBodyPointSize) private var bodyPointSize = DocumentStyle.balanced.bodyPointSize
+    @AppStorage(PreferenceKeys.documentLineHeightMultiplier) private var lineHeightMultiplier = DocumentStyle.balanced.lineHeightMultiplier
+    @AppStorage(PreferenceKeys.documentParagraphSpacing) private var paragraphSpacing = DocumentStyle.balanced.paragraphSpacing
+    @AppStorage(PreferenceKeys.documentTargetCharactersPerLine) private var targetCharactersPerLine = DocumentStyle.balanced.targetCharactersPerLine
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Label("Document Style", systemImage: "textformat.size")
+                    .font(.headline)
+                Spacer()
+                Text("Presentation only")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("Tune every Page view without adding style data to any note or Markdown file.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Picker("Preset", selection: presetBinding) {
+                ForEach(DocumentStylePreset.allCases) { preset in
+                    Text(preset.title).tag(preset)
+                }
+            }
+
+            if style != selectedPreset.style {
+                Label("Adjusted from \(selectedPreset.title)", systemImage: "slider.horizontal.3")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 10) {
+                GridRow {
+                    Text("Typeface")
+                    Picker("Typeface", selection: fontFamilyBinding) {
+                        ForEach(DocumentFontFamily.allCases) { family in
+                            Text(family.title).tag(family)
+                        }
+                    }
+                    .labelsHidden()
+                    .accessibilityLabel("Document typeface")
+                }
+
+                GridRow {
+                    Text("Text")
+                    Stepper(value: bodyPointSizeBinding, in: DocumentStyle.bodyPointSizeRange, step: 1) {
+                        Text("\(style.bodyPointSize, specifier: "%.0f") pt")
+                            .monospacedDigit()
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                    .accessibilityLabel("Body text size")
+                }
+
+                GridRow {
+                    Text("Line height")
+                    Stepper(value: lineHeightBinding, in: DocumentStyle.lineHeightMultiplierRange, step: 0.05) {
+                        Text("\(style.lineHeightMultiplier, specifier: "%.2f")×")
+                            .monospacedDigit()
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                    .accessibilityLabel("Line height")
+                }
+
+                GridRow {
+                    Text("Line length")
+                    Stepper(
+                        value: targetCharactersBinding,
+                        in: DocumentStyle.targetCharactersPerLineRange,
+                        step: 1
+                    ) {
+                        Text("\(style.targetCharactersPerLine, specifier: "%.0f") characters")
+                            .monospacedDigit()
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                    .accessibilityLabel("Target line length")
+                }
+            }
+
+            HStack {
+                Button("Balanced Defaults") {
+                    apply(.balanced)
+                }
+                .help("Reset document presentation settings")
+
+                Spacer()
+
+                SettingsLink {
+                    Text("More Settings…")
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: 350)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var selectedPreset: DocumentStylePreset {
+        DocumentStylePreset(rawValue: presetRawValue) ?? .balanced
+    }
+
+    private var style: DocumentStyle {
+        DocumentStyle(
+            preset: selectedPreset,
+            fontFamily: DocumentFontFamily(rawValue: fontFamilyRawValue) ?? selectedPreset.style.fontFamily,
+            bodyPointSize: bodyPointSize,
+            lineHeightMultiplier: lineHeightMultiplier,
+            paragraphSpacing: paragraphSpacing,
+            targetCharactersPerLine: targetCharactersPerLine
+        )
+    }
+
+    private var presetBinding: Binding<DocumentStylePreset> {
+        Binding(
+            get: { selectedPreset },
+            set: { apply($0) }
+        )
+    }
+
+    private var fontFamilyBinding: Binding<DocumentFontFamily> {
+        Binding(
+            get: { style.fontFamily },
+            set: { fontFamilyRawValue = $0.rawValue }
+        )
+    }
+
+    private var bodyPointSizeBinding: Binding<Double> {
+        clampedBinding($bodyPointSize, using: DocumentStyle.clampBodyPointSize)
+    }
+
+    private var lineHeightBinding: Binding<Double> {
+        clampedBinding($lineHeightMultiplier, using: DocumentStyle.clampLineHeightMultiplier)
+    }
+
+    private var targetCharactersBinding: Binding<Double> {
+        clampedBinding($targetCharactersPerLine, using: DocumentStyle.clampTargetCharactersPerLine)
+    }
+
+    private func clampedBinding(_ source: Binding<Double>, using clamp: @escaping (Double) -> Double) -> Binding<Double> {
+        Binding(
+            get: { clamp(source.wrappedValue) },
+            set: { source.wrappedValue = clamp($0) }
+        )
+    }
+
+    private func apply(_ preset: DocumentStylePreset) {
+        let value = preset.style
+        presetRawValue = preset.rawValue
+        fontFamilyRawValue = value.fontFamily.rawValue
+        bodyPointSize = value.bodyPointSize
+        lineHeightMultiplier = value.lineHeightMultiplier
+        paragraphSpacing = value.paragraphSpacing
+        targetCharactersPerLine = value.targetCharactersPerLine
     }
 }
 

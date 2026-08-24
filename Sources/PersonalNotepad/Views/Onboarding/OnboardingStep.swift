@@ -50,7 +50,7 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
                 "Select text, an image, or a link, then choose Create Note in Clasp or Create Private Note in Clasp from the source app’s Services menu."
             }
         case .organize:
-            "Clasp identifies and tags incoming content locally. Copied bold, italic, underline, headings, lists, and links carry into the formatted editor while Markdown stays underneath."
+            "Clasp identifies and tags incoming content locally. Page mode styles common AI-generated headings, emphasis, links, lists, checklists, quotes, and code while portable Markdown remains the canonical source."
         case .vault:
             if DistributionCapabilities.supportsAccessibilitySelectionCapture {
                 "Press Control–Option–P to add selected content directly to Vault. Titles, tags, image bytes, recognized text, and bodies are encrypted at rest."
@@ -77,7 +77,7 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
                 "Services receive only the selection you explicitly send. Clasp never requests Accessibility permission or monitors your keyboard."
             }
         case .organize:
-            "Use the Formatted / Markdown switch above any note. Formatting controls edit the same portable Markdown—there is never a separate hidden rich-text copy."
+            "Use the Page / Markdown switch above any note. Both views edit the same source, and Documents settings change its presentation without adding style data to the file."
         case .vault:
             if DistributionCapabilities.supportsAccessibilitySelectionCapture {
                 "Use ⌃⌥P for a selected private note. For clipboard capture, use the shield menu item; when safe clearing is enabled, Clasp clears only the exact value it captured, never anything copied afterward."
