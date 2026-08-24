@@ -1,13 +1,13 @@
 # Clasp external release handoff
 
 Observed: **2026-08-24**
-Status: **local product ready; Bundle ID, public GitHub repository, protected `main`, and protected release environments created; remaining external identities, app record, compliance, and release publication remain fail-closed**
+Status: **local product ready; Bundle ID, App Store Connect record, public GitHub repository, protected `main`, and protected release environments created; remaining external identities, compliance, and release publication remain fail-closed**
 
 This guide starts where the verified local build and repository release scaffolding stop. It does not authorize accepting agreements, choosing legal/compliance answers, generating credentials, publishing source, uploading binaries, or submitting for review without Robert at the relevant gate.
 
 ## Live Apple state
 
-- **App Store Connect → Apps** is authenticated as Robert Moore for Paper LLC and still shows **No Apps**. The exact New App form is prepared for Clasp, but the create action is waiting for action-time confirmation because the company name will be public and the app record is persistent.
+- **App Store Connect → Apps** contains the confirmed macOS record `Clasp: Private Markdown Notes`, Apple app ID `6804786714`, version `1.0`, in `Prepare for Submission`. Apple rejected the globally occupied bare product name `Clasp`; Robert approved the distinct Store name while the installed app remains `Clasp`. The permanent SKU was verified in the authenticated account and is intentionally withheld from this public repository.
 - **Apple Developer → Identifiers** lists `Clasp` / `com.robertmoore.personalnotepad` under Paper LLC team `R3Z7H2TRCB`; this identifier was registered on 2026-08-24 with no optional capability selected. Apple's default In-App Purchase capability remains present.
 - **Apple Developer → Certificates** lists two valid Developer ID Application certificates for direct distribution and one development certificate. It does not list an Apple Distribution / Mac App Distribution or Mac Installer Distribution certificate. The local keychain has zero valid code-signing identities, so the server-side certificate rows do not prove private-key custody.
 - **Apple Developer → Profiles** lists only DRG Agent Relay / Bridge profiles; no Clasp App Store profile exists.
@@ -20,7 +20,7 @@ The unauthenticated Sparkle feed requires this public repository. Do not generat
 
 ## Required order of operations
 
-1. **Create the App Store Connect macOS app record** from the already-registered exact Bundle ID after Robert confirms the public company name and persistent record fields. Record the Apple app ID and SKU privately.
+1. **Preserve the existing App Store Connect record** for Apple app ID `6804786714` and the exact registered Bundle ID. Revalidate its version/build state immediately before packaging or upload; keep the permanent SKU in authenticated account custody rather than public source.
 2. **Establish the required Apple identities and profile** after action-time approval for credential generation or import:
    - For direct distribution, first recover/import the private key for one exact existing Developer ID Application certificate and bind the selected fingerprint to its custodian. If neither existing private key can be recovered, obtain explicit approval before attempting a new certificate; do not revoke or replace either existing identity implicitly.
    - Apple Distribution / Mac App Distribution for the Store application.
