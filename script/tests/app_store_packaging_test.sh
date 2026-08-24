@@ -7,6 +7,7 @@ SIGNED_VALIDATOR="$ROOT_DIR/script/validate_app_store_profile.sh"
 PAYLOAD_VALIDATOR="$ROOT_DIR/script/lib/verify_packaged_app_payload.sh"
 COMMON="$ROOT_DIR/script/lib/app_store_common.sh"
 STAGER="$ROOT_DIR/script/stage_app.sh"
+ARTIFACT_VALIDATOR="$ROOT_DIR/script/validate_app_store_artifacts.sh"
 FIXTURE="$ROOT_DIR/script/tests/fixtures/app-store-profile-valid.plist"
 ENTITLEMENTS="$ROOT_DIR/release/Clasp.app-store.entitlements"
 METADATA="$ROOT_DIR/release/AppStore/METADATA_DRAFT.md"
@@ -34,8 +35,14 @@ expect_failure() {
   fi
 }
 
+require_non_root_readable_fixture() {
+  (app_store_require_non_root_readable_bundle "$1")
+}
+
 plutil -lint "$FIXTURE" "$ENTITLEMENTS" >/dev/null
 grep -F 'app_store_clear_profile_download_xattrs "$APP/Contents/embedded.provisionprofile"' "$STAGER" >/dev/null
+grep -F 'chmod 0644 "$APP/Contents/embedded.provisionprofile"' "$STAGER" >/dev/null
+grep -F 'app_store_require_non_root_readable_bundle "$APP"' "$ARTIFACT_VALIDATOR" >/dev/null
 validate_payload "$FIXTURE" >/dev/null
 grep -F 'selected-content capture through macOS Services' "$METADATA" >/dev/null
 grep -F 'omits Accessibility-assisted selection shortcuts' "$METADATA" >/dev/null
@@ -91,6 +98,20 @@ printf 'fixture' >"$PROFILE_XATTR_FIXTURE"
 xattr -w com.example.clasp-fixture value "$PROFILE_XATTR_FIXTURE"
 app_store_clear_profile_download_xattrs "$PROFILE_XATTR_FIXTURE"
 app_store_profile_xattrs_are_safe "$(xattr "$PROFILE_XATTR_FIXTURE")"
+
+READABLE_APP_FIXTURE="$TEMP_DIR/non-root-readable/Clasp.app"
+mkdir -p "$READABLE_APP_FIXTURE/Contents/Resources"
+printf 'fixture profile\n' >"$READABLE_APP_FIXTURE/Contents/embedded.provisionprofile"
+chmod 0755 "$READABLE_APP_FIXTURE" "$READABLE_APP_FIXTURE/Contents" "$READABLE_APP_FIXTURE/Contents/Resources"
+chmod 0644 "$READABLE_APP_FIXTURE/Contents/embedded.provisionprofile"
+require_non_root_readable_fixture "$READABLE_APP_FIXTURE"
+chmod 0600 "$READABLE_APP_FIXTURE/Contents/embedded.provisionprofile"
+expect_failure non-root-unreadable-file \
+  require_non_root_readable_fixture "$READABLE_APP_FIXTURE"
+chmod 0644 "$READABLE_APP_FIXTURE/Contents/embedded.provisionprofile"
+chmod 0700 "$READABLE_APP_FIXTURE/Contents/Resources"
+expect_failure non-root-untraversable-directory \
+  require_non_root_readable_fixture "$READABLE_APP_FIXTURE"
 
 SAFE_APP_STORE_SYMBOLS=$'                 U _NSAccessibilityPostNotification\n0000000100001000 T _$s15PersonalNotepad24LocalConfirmationPresenterC'
 if app_store_symbol_list_contains_selection_capture "$SAFE_APP_STORE_SYMBOLS"; then

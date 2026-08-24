@@ -59,6 +59,7 @@ MIGRATION="$APP/Contents/Resources/container-migration.plist"
 EXPECTED_MIGRATION_PATH='${ApplicationSupport}/Personal Notepad'
 [[ -f "$INFO" && -x "$BIN" && -f "$EMBEDDED_PROFILE" && -f "$MIGRATION" ]] \
   || app_store_die "App Store bundle structure or required migration resource is incomplete"
+app_store_require_non_root_readable_bundle "$APP"
 cmp -s "$PROFILE" "$EMBEDDED_PROFILE" \
   || app_store_die "embedded provisioning profile is not the validated input profile"
 plutil -lint "$INFO" "$MIGRATION" "$APP/Contents/Resources/PrivacyInfo.xcprivacy" >/dev/null
