@@ -9,6 +9,10 @@ This copy is a draft for Robert's final approval.
 - Privacy Policy URL: **TBD — real public HTTPS privacy policy required**
 - Marketing URL: **TBD — optional**
 
+## Screenshot candidates
+
+Five synthetic-data candidates are stored in [`Screenshots/`](Screenshots/). They are non-transparent 2560×1600 JPEGs and cover the light editor, exact Markdown source, document-style controls, dark mode, and the bounded rich-formatting menu. They pass the repository screenshot validator, but must be compared with the exact final signed Store build and approved before upload.
+
 ## Promotional text
 
 Catch the thought before it slips away—then find it when you need it.

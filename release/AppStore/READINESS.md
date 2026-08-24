@@ -27,7 +27,7 @@ Status: **not ready to upload or submit**. This is a custody checklist, not Appl
 - [ ] Make the hosted Support route expose a monitored public security-reporting contact, verify that it receives reports, and reflect the exact route in `SECURITY.md` before public distribution.
 - [ ] Complete Apple's age-rating questionnaire; an unrated app cannot be published.
 - [ ] Answer App Privacy from the exact Store binary, including every third-party component. The Store build is designed to contain no Sparkle and Clasp currently claims no collection.
-- [ ] Capture 1–10 final Mac screenshots, all one accepted 16:10 size: 1280×800, 1440×900, 2560×1600, or 2880×1800, without transparency.
+- [ ] Approve or recapture the five synthetic-data candidates in `Screenshots/` against the exact final signed Store build. The candidates are validated non-transparent 2560×1600 JPEGs, but are not signed-build submission evidence.
 - [ ] Complete accessibility labels only for behaviors verified in the final Store build.
 - [ ] Add review contact, notes, and any sandbox/permission instructions; perform final human/legal/product review.
 - [x] Provide `SUBMISSION_HANDOFF.md` to bind the source SHA, workflow run, package checksum, Apple delivery/processing IDs, listing state, and final human approval.

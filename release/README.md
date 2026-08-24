@@ -98,6 +98,8 @@ After packaging, complete [`AppStore/SUBMISSION_HANDOFF.md`](AppStore/SUBMISSION
 
 ## Apple prerequisites
 
+The live account and publication sequence is captured in [`EXTERNAL_RELEASE_HANDOFF.md`](EXTERNAL_RELEASE_HANDOFF.md). It records the prepared Chrome gates and the decisions that must remain with Robert.
+
 Direct distribution needs Apple Developer Program membership, a Developer ID Application certificate, and notarization credentials. Mac App Store distribution separately needs an App Store Connect app record, registered bundle ID, Mac App Distribution and Mac Installer Distribution certificates, a provisioning profile, App Sandbox acceptance testing, export-compliance answers, agreements, tax/banking as applicable, metadata, privacy policy URL, age rating, screenshots, and final human review.
 
 Primary references: [Apple notarization](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution), [Apple certificates](https://developer.apple.com/help/account/create-certificates/certificates-overview), [App Sandbox](https://developer.apple.com/documentation/security/protecting-user-data-with-app-sandbox), [Sparkle setup](https://sparkle-project.org/documentation/), [Sparkle publishing](https://sparkle-project.org/documentation/publishing/), and [GitHub deployment environments](https://docs.github.com/en/actions/concepts/workflows-and-actions/deployment-environments).

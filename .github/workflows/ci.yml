@@ -112,6 +112,7 @@ jobs:
           ./script/tests/install_and_publish_custody_test.sh
           ./script/tests/direct_package_resolution_test.sh
           ./script/tests/release_workflow_contract_test.sh
+          ./script/tests/app_store_screenshot_test.sh
           ./script/lib/validate_public_https_url.sh --self-test
           ./script/verify_direct_release.sh --self-test
           [[ ! -e Package.resolved && ! -L Package.resolved ]]
