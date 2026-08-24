@@ -8,6 +8,7 @@ CI="$ROOT_DIR/.github/workflows/ci.yml"
 DIRECT="$ROOT_DIR/.github/workflows/direct-release-draft.yml"
 STORE="$ROOT_DIR/.github/workflows/app-store-package.yml"
 STAGE_APP="$ROOT_DIR/script/stage_app.sh"
+INFO_PLIST="$ROOT_DIR/release/Info.plist"
 
 fail() {
   echo "release workflow contract failed: $*" >&2
@@ -85,6 +86,22 @@ for secret_name in \
     || fail "$secret_name must be injected only by the credential-import step"
 done
 
+for secret_name in \
+  DEVELOPER_ID_APPLICATION_P12_BASE64 \
+  DEVELOPER_ID_APPLICATION_P12_PASSWORD \
+  APP_STORE_CONNECT_API_KEY_P8_BASE64 \
+  APP_STORE_CONNECT_KEY_ID \
+  APP_STORE_CONNECT_ISSUER_ID \
+  SPARKLE_PRIVATE_ED_KEY; do
+  [[ "$(grep -Fc "secrets.$secret_name" "$DIRECT")" == 1 ]] \
+    || fail "$secret_name must be injected only by its direct-release credential step"
+done
+
+require_literal "$DIRECT" '[[ -n "$P12_BASE64" && -n "$P12_PASSWORD" ]]'
+require_literal "$DIRECT" '[[ -n "$NOTARY_P8_BASE64" ]]'
+require_literal "$DIRECT" '[[ -n "$CLASP_NOTARY_KEY_ID" && -n "$CLASP_NOTARY_ISSUER_ID" ]]'
+require_literal "$DIRECT" '[[ -n "$CLASP_SPARKLE_PRIVATE_KEY" ]]'
+
 require_literal "$CI" '[[ ! -e Package.resolved && ! -L Package.resolved ]]'
 require_literal "$STORE" '[[ ! -e Package.resolved && ! -L Package.resolved ]]'
 require_literal "$STAGE_APP" 'source "$ROOT_DIR/script/lib/direct_package_resolution.sh"'
@@ -95,5 +112,13 @@ require_literal "$STAGE_APP" 'clasp_remove_direct_package_resolution "$ROOT_RESO
 BUILD_AND_RUN="$ROOT_DIR/script/build_and_run.sh"
 [[ "$(grep -Fc '[[ ! -e Package.resolved && ! -L Package.resolved ]]' "$BUILD_AND_RUN")" == 2 ]] \
   || fail "build_and_run.sh must reject regular and dangling root Package.resolved paths before and after testing"
+
+# shellcheck source=../../release/config.env
+# shellcheck disable=SC1091
+source "$ROOT_DIR/release/config.env"
+[[ "$(plutil -extract CFBundleShortVersionString raw -o - "$INFO_PLIST")" == "$CLASP_VERSION" ]] \
+  || fail "Info.plist version must match release/config.env"
+[[ "$(plutil -extract CFBundleVersion raw -o - "$INFO_PLIST")" == "$CLASP_BUILD_NUMBER" ]] \
+  || fail "Info.plist build must match release/config.env"
 
 echo "release workflow source contracts passed"

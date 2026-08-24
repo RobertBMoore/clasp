@@ -99,6 +99,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          [[ -n "$P12_BASE64" && -n "$P12_PASSWORD" ]]
           KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
           echo "::add-mask::$KEYCHAIN_PASSWORD"
           echo "CLASP_EPHEMERAL_KEYCHAIN=$RUNNER_TEMP/clasp.keychain-db" >> "$GITHUB_ENV"
@@ -126,6 +127,8 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          [[ -n "$NOTARY_P8_BASE64" ]]
+          [[ -n "$CLASP_NOTARY_KEY_ID" && -n "$CLASP_NOTARY_ISSUER_ID" ]]
           printf '%s' "$NOTARY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
           export CLASP_NOTARY_KEY_FILE="$RUNNER_TEMP/notary.p8"
           ./script/notarize_direct_release.sh release-output/Clasp.app "release-output/Clasp-$RELEASE_VERSION-$RELEASE_BUILD_NUMBER.zip"
@@ -133,7 +136,10 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.release_inputs.outputs.version }}
           CLASP_SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
-        run: ./script/generate_appcast.sh release-output "https://github.com/$GITHUB_REPOSITORY/releases/download/v$RELEASE_VERSION/"
+        run: |
+          set -euo pipefail
+          [[ -n "$CLASP_SPARKLE_PRIVATE_KEY" ]]
+          ./script/generate_appcast.sh release-output "https://github.com/$GITHUB_REPOSITORY/releases/download/v$RELEASE_VERSION/"
       - name: Verify finished direct release offline
         env:
           RELEASE_VERSION: ${{ steps.release_inputs.outputs.version }}
