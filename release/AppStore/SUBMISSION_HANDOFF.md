@@ -4,27 +4,27 @@ Complete this record from the exact successful package workflow and App Store Co
 
 ## Source and package
 
-- Source commit SHA:
-- Protected branch:
-- GitHub workflow run URL:
+- Source commit SHA: `8f4dbc3dc32f500a766ecd421d06a26c9d81c2fe`
+- Protected branch: `main`
+- GitHub package workflow run URL: not run; protected P12/password secrets are not yet available. The required source CI run `https://github.com/RobertBMoore/clasp/actions/runs/32779477288` passed the tree later squash-merged as the source commit above.
 - Registered explicit Bundle ID / Apple identifier record: `Clasp` / `com.robertmoore.personalnotepad`, Paper LLC team `R3Z7H2TRCB`, verified live 2026-08-24
 - Expected Apple Developer Team ID from the account record (not artifact evidence): `R3Z7H2TRCB`
 - App Store Connect app record: `Clasp: Private Markdown Notes`, macOS 1.0, Apple app ID `6804786714`, `Prepare for Submission`, verified live 2026-08-24. The permanent SKU was verified in the authenticated account and is intentionally withheld from this public repository.
-- Version (`CFBundleShortVersionString`):
-- Build (`CFBundleVersion`):
-- Last accepted build-number assertion, App Store Connect source, and checked date/time:
-- Package filename:
-- Package SHA-256:
-- Package-payload parity result:
-- Privacy policy URL embedded in the signed app:
-- Signing Team ID observed from the exact packaged artifact:
+- Version (`CFBundleShortVersionString`): `1.0.0` in the local review artifact. App Store Connect still showed version `1.0` on 2026-08-24; resolve this mismatch before upload.
+- Build (`CFBundleVersion`): `8`
+- Last accepted build-number assertion, App Store Connect source, and checked date/time: protected environment assertion `0`; not revalidated against App Store Connect after the local build, so upload remains blocked.
+- Package filename: `Clasp-1.0.0-8-AppStore.pkg` (local review artifact; not uploaded)
+- Package SHA-256: `ade2c0ff47215deedd86d581ee4a4c362b309614a65da356aa649a5ae16641b6`
+- Package-payload parity result: exact path/type/mode/symlink/hash/xattr parity and script-free, non-relocatable `/Applications` PackageInfo policy passed locally on 2026-08-24.
+- Privacy policy URL embedded in the signed app: `https://robertbmoore.github.io/clasp/privacy.html`
+- Signing Team ID observed from the exact packaged artifact: `R3Z7H2TRCB`
 - Mac App Distribution identity and SHA-256 fingerprint: `3rd Party Mac Developer Application: Paper LLC (R3Z7H2TRCB)` / `C7:1E:DE:4E:76:1A:DB:6E:3B:1F:8C:B3:EB:2C:81:7D:0D:EC:3E:3C:03:18:EE:C5:EC:84:68:60:4B:B0:AB:D7`, verified locally 2026-08-24
 - Mac Installer Distribution identity and SHA-256 fingerprint: `3rd Party Mac Developer Installer: Paper LLC (R3Z7H2TRCB)` / `D7:33:19:AA:7B:85:94:62:C3:B2:6E:6B:13:15:F8:D2:46:F6:FD:15:72:74:EC:CB:F8:C7:3A:02:93:F0:3D:9E`, verified locally 2026-08-24
 - Provisioning profile UUID and expiry: `25535586-40DF-4EE1-AA8F-D57F2CFBD210` / 2027-08-24 18:42:28 UTC; `Clasp Mac App Store 2026`, exact certificate/bundle/team validation passed locally 2026-08-24
 
 ## Upload and processing
 
-- Upload tool and version (Transporter, Xcode, or `altool`):
+- Upload tool and version (Transporter, Xcode, or `altool`): not run
 - Upload date/time and operator:
 - Delivery/upload ID:
 - App Store Connect app ID: `6804786714`
@@ -39,9 +39,9 @@ Complete this record from the exact successful package workflow and App Store Co
 
 ## Listing and review
 
-- Support URL:
-- Monitored support/security contact tested successfully:
-- Privacy policy URL:
+- Support URL: `https://robertbmoore.github.io/clasp/`
+- Monitored support/security contact tested successfully: pending end-to-end test of `hello@paper.ai` and GitHub private vulnerability reporting
+- Privacy policy URL: `https://robertbmoore.github.io/clasp/privacy.html`
 - Screenshot set, dimensions, and source build:
 - Primary/secondary category:
 - Price, availability, and territories:
