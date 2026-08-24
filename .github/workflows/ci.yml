@@ -1,0 +1,87 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test-and-package-local:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Test and validate the local channel
+        run: ./script/build_and_run.sh --build-only
+      - name: Test the App Store compilation boundary
+        env:
+          CLASP_DIRECT_DISTRIBUTION: "0"
+        run: |
+          set -euo pipefail
+          source release/config.env
+          test ! -e Package.resolved
+          swift test \
+            --scratch-path .build-app-store-ci \
+            --arch "$CLASP_ARCH" \
+            -Xswiftc -DCLASP_APP_STORE
+          swift build \
+            --scratch-path .build-app-store-ci \
+            --configuration release \
+            --arch "$CLASP_ARCH" \
+            -Xswiftc -DCLASP_APP_STORE
+          STORE_BIN="$(swift build \
+            --scratch-path .build-app-store-ci \
+            --configuration release \
+            --arch "$CLASP_ARCH" \
+            -Xswiftc -DCLASP_APP_STORE \
+            --show-bin-path)/Clasp"
+          test -x "$STORE_BIN"
+          test "$(lipo -archs "$STORE_BIN")" = "$CLASP_ARCH"
+          if otool -L "$STORE_BIN" | grep -F 'Sparkle.framework/'; then
+            echo "App Store binary unexpectedly links Sparkle" >&2
+            exit 1
+          fi
+          if nm -u "$STORE_BIN" | grep -Eq \
+              'CGPreflightPostEventAccess|CGRequestPostEventAccess|CGEventCreateKeyboardEvent|CGEventPost'; then
+            echo "App Store binary unexpectedly contains Accessibility capture symbols" >&2
+            exit 1
+          fi
+          test ! -e Package.resolved
+      - name: Test the direct-download compilation boundary
+        env:
+          CLASP_DIRECT_DISTRIBUTION: "1"
+        run: |
+          set -euo pipefail
+          source release/config.env
+          test ! -e Package.resolved
+          cp release/Package.direct.resolved Package.resolved
+          trap 'rm -f Package.resolved' EXIT
+          swift build \
+            --scratch-path .build-direct-ci \
+            --configuration release \
+            --arch "$CLASP_ARCH" \
+            --force-resolved-versions \
+            -Xswiftc -DCLASP_DIRECT_DISTRIBUTION
+          DIRECT_BIN="$(swift build \
+            --scratch-path .build-direct-ci \
+            --configuration release \
+            --arch "$CLASP_ARCH" \
+            --force-resolved-versions \
+            -Xswiftc -DCLASP_DIRECT_DISTRIBUTION \
+            --show-bin-path)/Clasp"
+          test -x "$DIRECT_BIN"
+          test "$(lipo -archs "$DIRECT_BIN")" = "$CLASP_ARCH"
+          otool -L "$DIRECT_BIN" | grep -F '@rpath/Sparkle.framework/'
+          cmp -s Package.resolved release/Package.direct.resolved
+      - name: Validate release-script contracts
+        run: |
+          set -euo pipefail
+          test ! -e Package.resolved
+          find script -type f -name '*.sh' -print0 | xargs -0 bash -n
+          ./script/tests/app_store_packaging_test.sh
+          ./script/tests/direct_published_acceptance_contract_test.sh
+          ./script/tests/output_custody_test.sh
+          ./script/tests/install_and_publish_custody_test.sh
+          ./script/lib/validate_public_https_url.sh --self-test
+          ./script/verify_direct_release.sh --self-test
+          test ! -e Package.resolved

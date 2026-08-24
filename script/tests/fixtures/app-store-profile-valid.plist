@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Name</key>
+  <string>Clasp App Store Fixture</string>
+  <key>UUID</key>
+  <string>11111111-2222-3333-4444-555555555555</string>
+  <key>ExpirationDate</key>
+  <date>2099-01-01T00:00:00Z</date>
+  <key>Platform</key>
+  <array>
+    <string>OSX</string>
+  </array>
+  <key>TeamIdentifier</key>
+  <array>
+    <string>ZYXWV67890</string>
+  </array>
+  <key>ApplicationIdentifierPrefix</key>
+  <array>
+    <string>ABCDE12345</string>
+  </array>
+  <key>DeveloperCertificates</key>
+  <array>
+    <data>AQIDBA==</data>
+  </array>
+  <key>Entitlements</key>
+  <dict>
+    <key>com.apple.application-identifier</key>
+    <string>ABCDE12345.com.robertmoore.personalnotepad</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>ZYXWV67890</string>
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>beta-reports-active</key>
+    <true/>
+    <key>get-task-allow</key>
+    <false/>
+  </dict>
+</dict>
+</plist>

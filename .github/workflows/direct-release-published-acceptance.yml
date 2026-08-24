@@ -1,0 +1,113 @@
+name: Published direct release acceptance
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clasp-direct-published-acceptance
+  cancel-in-progress: false
+
+jobs:
+  verify-public-release:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # The release tag is untrusted input. Run the acceptance verifier from
+          # the immutable protected-default-branch commit that supplied this workflow.
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: trusted-source
+      - name: Download and verify the exact public update assets
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          EVENT_TAG_SHA: ${{ github.sha }}
+          TRUSTED_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+          UPDATE_FEED_URL: ${{ vars.CLASP_UPDATE_FEED_URL }}
+          SPARKLE_PUBLIC_KEY: ${{ vars.CLASP_SPARKLE_PUBLIC_KEY }}
+          DEVELOPER_IDENTITY: ${{ vars.DEVELOPER_ID_APPLICATION_IDENTITY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$REPOSITORY_VISIBILITY" == public ]]
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$UPDATE_FEED_URL" == "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml" ]]
+          [[ -n "$SPARKLE_PUBLIC_KEY" && -n "$DEVELOPER_IDENTITY" ]]
+          [[ "$EVENT_TAG_SHA" =~ ^[0-9a-f]{40}$ && "$TRUSTED_WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git -C trusted-source rev-parse HEAD)" == "$TRUSTED_WORKFLOW_SHA" ]]
+
+          ENCODED_DEFAULT_BRANCH="$(jq -rn --arg value "$DEFAULT_BRANCH" '$value | @uri')"
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/branches/$ENCODED_DEFAULT_BRANCH" --jq '.protected')" == true ]]
+          git -C trusted-source fetch --force --tags origin
+          git -C trusted-source fetch origin \
+            "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          TAG_SHA="$(git -C trusted-source rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")"
+          [[ "$TAG_SHA" == "$EVENT_TAG_SHA" ]]
+          git -C trusted-source merge-base --is-ancestor \
+            "$TAG_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"
+          git -C trusted-source merge-base --is-ancestor \
+            "$TRUSTED_WORKFLOW_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"
+
+          VERSION="${RELEASE_TAG#v}"
+          mkdir -p release-output
+          gh release download "$RELEASE_TAG" \
+            --pattern 'Clasp-*.zip' \
+            --pattern 'Clasp-*.zip.sha256' \
+            --pattern appcast.xml \
+            --dir release-output
+          curl --fail --silent --show-error --location \
+            --proto '=https' --proto-redir '=https' "$UPDATE_FEED_URL" \
+            --output "$RUNNER_TEMP/public-appcast.xml"
+          cmp -s release-output/appcast.xml "$RUNNER_TEMP/public-appcast.xml"
+
+          BUILD_NUMBER="$(xmllint --xpath \
+            'string(/*[local-name()="rss"]/*[local-name()="channel"]/*[local-name()="item"][1]/*[local-name()="enclosure"]/@*[local-name()="version"])' \
+            release-output/appcast.xml)"
+          [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]{0,17}$ ]]
+          ARCHIVE="release-output/Clasp-$VERSION-$BUILD_NUMBER.zip"
+          [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]]
+          PUBLIC_ARCHIVE_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/${ARCHIVE##*/}"
+          PUBLIC_CHECKSUM_URL="$PUBLIC_ARCHIVE_URL.sha256"
+          curl --fail --silent --show-error --location \
+            --proto '=https' --proto-redir '=https' "$PUBLIC_ARCHIVE_URL" \
+            --output "$RUNNER_TEMP/public-archive.zip"
+          curl --fail --silent --show-error --location \
+            --proto '=https' --proto-redir '=https' "$PUBLIC_CHECKSUM_URL" \
+            --output "$RUNNER_TEMP/public-archive.zip.sha256"
+          cmp -s "$ARCHIVE" "$RUNNER_TEMP/public-archive.zip"
+          cmp -s "$ARCHIVE.sha256" "$RUNNER_TEMP/public-archive.zip.sha256"
+
+          CLASP_DEVELOPER_ID_APPLICATION="$DEVELOPER_IDENTITY" \
+          CLASP_UPDATE_FEED_URL="$UPDATE_FEED_URL" \
+          CLASP_SPARKLE_PUBLIC_KEY="$SPARKLE_PUBLIC_KEY" \
+          ./trusted-source/script/verify_direct_release.sh \
+            release-output "$VERSION" "$BUILD_NUMBER" \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/" \
+            --require-notarization --archive-only
+
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg tag "$RELEASE_TAG" \
+            --arg source_sha "$TAG_SHA" \
+            --arg verifier_sha "$TRUSTED_WORKFLOW_SHA" \
+            --arg public_archive_url "$PUBLIC_ARCHIVE_URL" \
+            --arg archive_sha256 "$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')" \
+            --arg appcast_sha256 "$(shasum -a 256 release-output/appcast.xml | awk '{print $1}')" \
+            '{repository:$repository,tag:$tag,source_sha:$source_sha,verifier_sha:$verifier_sha,public_archive_url:$public_archive_url,archive_sha256:$archive_sha256,appcast_sha256:$appcast_sha256}' \
+            > published-release-acceptance.json
+      - name: Preserve the public-release acceptance receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ github.event.release.tag_name }}-published-acceptance
+          path: published-release-acceptance.json
+          if-no-files-found: error
+          retention-days: 90

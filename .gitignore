@@ -1,0 +1,13 @@
+.build/
+.build-*/
+.cache/
+dist/
+release-output/
+.DS_Store
+*.xcuserstate
+.codex/
+AUTONOMOUS_BUILD_GOAL.md
+artifacts/icon-audit/
+artifacts/icon-audit-v2/
+artifacts/vault-tooltip-update/
+artifacts/visual-qa-2026-08-23/
