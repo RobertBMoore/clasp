@@ -28,21 +28,32 @@ jobs:
           path: trusted-source
       - name: Download and verify the exact public update assets
         env:
+          # Release events run from tag refs, which cannot use the protected-
+          # branches-only release environment. These four non-secret repository
+          # variables use distinct names and must exactly mirror the protected
+          # release-environment pins. Distinct names prevent repository values
+          # from shadowing environment values in the draft workflow.
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           EVENT_TAG_SHA: ${{ github.sha }}
           TRUSTED_WORKFLOW_SHA: ${{ github.workflow_sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
-          UPDATE_FEED_URL: ${{ vars.CLASP_UPDATE_FEED_URL }}
-          SPARKLE_PUBLIC_KEY: ${{ vars.CLASP_SPARKLE_PUBLIC_KEY }}
-          DEVELOPER_IDENTITY: ${{ vars.DEVELOPER_ID_APPLICATION_IDENTITY }}
+          UPDATE_FEED_URL: ${{ vars.CLASP_PUBLISHED_UPDATE_FEED_URL }}
+          SPARKLE_PUBLIC_KEY: ${{ vars.CLASP_PUBLISHED_SPARKLE_PUBLIC_KEY }}
+          DEVELOPER_IDENTITY: ${{ vars.CLASP_PUBLISHED_DEVELOPER_ID_APPLICATION_IDENTITY }}
+          DEVELOPER_ID_CERTIFICATE_SHA256: ${{ vars.CLASP_PUBLISHED_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256 }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           [[ "$REPOSITORY_VISIBILITY" == public ]]
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ "$UPDATE_FEED_URL" == "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml" ]]
-          [[ -n "$SPARKLE_PUBLIC_KEY" && -n "$DEVELOPER_IDENTITY" ]]
+          [[ -n "$SPARKLE_PUBLIC_KEY" ]]
+          source trusted-source/script/lib/direct_signing.sh
+          clasp_direct_is_valid_identity "$DEVELOPER_IDENTITY"
+          clasp_direct_is_valid_sha256 "$DEVELOPER_ID_CERTIFICATE_SHA256"
+          DEVELOPER_ID_CERTIFICATE_SHA256="$(clasp_direct_uppercase_sha256 \
+            "$DEVELOPER_ID_CERTIFICATE_SHA256")"
           [[ "$EVENT_TAG_SHA" =~ ^[0-9a-f]{40}$ && "$TRUSTED_WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git -C trusted-source rev-parse HEAD)" == "$TRUSTED_WORKFLOW_SHA" ]]
 
@@ -88,6 +99,7 @@ jobs:
           cmp -s "$ARCHIVE.sha256" "$RUNNER_TEMP/public-archive.zip.sha256"
 
           CLASP_DEVELOPER_ID_APPLICATION="$DEVELOPER_IDENTITY" \
+          CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256="$DEVELOPER_ID_CERTIFICATE_SHA256" \
           CLASP_UPDATE_FEED_URL="$UPDATE_FEED_URL" \
           CLASP_SPARKLE_PUBLIC_KEY="$SPARKLE_PUBLIC_KEY" \
           ./trusted-source/script/verify_direct_release.sh \
@@ -100,10 +112,11 @@ jobs:
             --arg tag "$RELEASE_TAG" \
             --arg source_sha "$TAG_SHA" \
             --arg verifier_sha "$TRUSTED_WORKFLOW_SHA" \
+            --arg developer_id_application_certificate_sha256 "$DEVELOPER_ID_CERTIFICATE_SHA256" \
             --arg public_archive_url "$PUBLIC_ARCHIVE_URL" \
             --arg archive_sha256 "$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')" \
             --arg appcast_sha256 "$(shasum -a 256 release-output/appcast.xml | awk '{print $1}')" \
-            '{repository:$repository,tag:$tag,source_sha:$source_sha,verifier_sha:$verifier_sha,public_archive_url:$public_archive_url,archive_sha256:$archive_sha256,appcast_sha256:$appcast_sha256}' \
+            '{repository:$repository,tag:$tag,source_sha:$source_sha,verifier_sha:$verifier_sha,developer_id_application_certificate_sha256:$developer_id_application_certificate_sha256,public_archive_url:$public_archive_url,archive_sha256:$archive_sha256,appcast_sha256:$appcast_sha256}' \
             > published-release-acceptance.json
       - name: Preserve the public-release acceptance receipt
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

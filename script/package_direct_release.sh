@@ -6,6 +6,9 @@ source "$ROOT_DIR/release/config.env"
 # shellcheck source=lib/output_custody.sh
 # shellcheck disable=SC1091
 source "$ROOT_DIR/script/lib/output_custody.sh"
+# shellcheck source=lib/direct_signing.sh
+# shellcheck disable=SC1091
+source "$ROOT_DIR/script/lib/direct_signing.sh"
 VERSION="${1:-$CLASP_VERSION}"; BUILD_NUMBER="${2:-$CLASP_BUILD_NUMBER}"
 [[ "$#" -le 2 ]] || { echo "usage: $0 [VERSION BUILD_NUMBER]" >&2; exit 2; }
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "invalid version" >&2; exit 2; }
@@ -23,9 +26,9 @@ clasp_require_fresh_named_output \
   "$OUT" "$FINAL_CHECKSUM" "$CLASP_APP_NAME-$VERSION-$BUILD_NUMBER.zip.sha256" "direct checksum"
 
 : "${CLASP_DEVELOPER_ID_APPLICATION:?set the exact Developer ID Application identity}"
+: "${CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256:?set the exact Developer ID Application certificate SHA-256 fingerprint}"
 : "${CLASP_UPDATE_FEED_URL:?set the HTTPS appcast URL}"
 : "${CLASP_SPARKLE_PUBLIC_KEY:?set the Sparkle EdDSA public key}"
-security find-identity -p codesigning -v | grep -Fq "$CLASP_DEVELOPER_ID_APPLICATION" || { echo "signing identity is unavailable" >&2; exit 1; }
 STAGE_DIR="$(mktemp -d "$OUT/.clasp-direct-package.XXXXXX")"
 APP="$STAGE_DIR/$CLASP_APP_NAME.app"
 ZIP="$STAGE_DIR/$CLASP_APP_NAME-$VERSION-$BUILD_NUMBER.zip"
@@ -50,6 +53,10 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+SIGN_IDENTITY_SHA1="$(clasp_direct_resolve_identity_sha1 \
+  "$CLASP_DEVELOPER_ID_APPLICATION" \
+  "$CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256" \
+  "$STAGE_DIR/certificate-resolution")"
 clasp_compile_no_replace_mover "$ROOT_DIR" "$NO_REPLACE_MOVER"
 
 "$ROOT_DIR/script/stage_app.sh" \
@@ -59,8 +66,12 @@ clasp_compile_no_replace_mover "$ROOT_DIR" "$NO_REPLACE_MOVER"
   --build-number "$BUILD_NUMBER" \
   --output "$APP" \
   --managed-output direct-package \
-  --sign-identity "$CLASP_DEVELOPER_ID_APPLICATION"
+  --sign-identity "$SIGN_IDENTITY_SHA1"
 "$ROOT_DIR/script/validate_app.sh" direct "$APP"
+clasp_direct_require_signed_path_certificate \
+  "$APP" \
+  "$CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256" \
+  "$STAGE_DIR/certificate-checks"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 (
   cd "$STAGE_DIR"

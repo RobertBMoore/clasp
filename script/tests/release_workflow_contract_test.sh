@@ -8,6 +8,8 @@ CI="$ROOT_DIR/.github/workflows/ci.yml"
 DIRECT="$ROOT_DIR/.github/workflows/direct-release-draft.yml"
 STORE="$ROOT_DIR/.github/workflows/app-store-package.yml"
 STAGE_APP="$ROOT_DIR/script/stage_app.sh"
+DIRECT_PACKAGE="$ROOT_DIR/script/package_direct_release.sh"
+DIRECT_VERIFY="$ROOT_DIR/script/verify_direct_release.sh"
 INFO_PLIST="$ROOT_DIR/release/Info.plist"
 
 fail() {
@@ -52,6 +54,8 @@ require_release_test_count "$CI" 2
 require_release_test_count "$DIRECT" 1
 require_release_test_count "$STORE" 1
 
+require_literal "$DIRECT" 'environment: release'
+
 for workflow in "$DIRECT" "$STORE"; do
   require_literal "$workflow" 'cancel-in-progress: false'
   require_literal "$workflow" 'queue: max'
@@ -78,6 +82,16 @@ for variable_name in \
   [[ "$(grep -Fc "vars.$variable_name" "$STORE")" == 2 ]] \
     || fail "$variable_name must be required by preflight and injected into packaging"
 done
+
+[[ "$(grep -Fc 'vars.DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256' "$DIRECT")" == 3 ]] \
+  || fail "the Developer ID certificate pin must be required by preflight, packaging, and offline verification"
+require_literal "$DIRECT" 'clasp_direct_is_valid_sha256 "$DEVELOPER_ID_CERTIFICATE_SHA256"'
+require_literal "$DIRECT_PACKAGE" ': "${CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256:?set the exact Developer ID Application certificate SHA-256 fingerprint}"'
+require_literal "$DIRECT_PACKAGE" 'SIGN_IDENTITY_SHA1="$(clasp_direct_resolve_identity_sha1'
+require_literal "$DIRECT_PACKAGE" '--sign-identity "$SIGN_IDENTITY_SHA1"'
+require_literal "$DIRECT_PACKAGE" 'clasp_direct_require_signed_path_certificate'
+require_literal "$DIRECT_VERIFY" ': "${CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256:?set the expected Developer ID Application certificate SHA-256 fingerprint}"'
+require_literal "$DIRECT_VERIFY" 'clasp_direct_require_signed_path_certificate'
 if grep -F 'CLASP_EPHEMERAL_KEYCHAIN_PASSWORD=' "$STORE" >/dev/null; then
   fail "the generated App Store keychain password must stay step-local"
 fi
@@ -126,5 +140,7 @@ source "$ROOT_DIR/release/config.env"
   || fail "Info.plist version must match release/config.env"
 [[ "$(plutil -extract CFBundleVersion raw -o - "$INFO_PLIST")" == "$CLASP_BUILD_NUMBER" ]] \
   || fail "Info.plist build must match release/config.env"
+[[ "$(plutil -extract ITSAppUsesNonExemptEncryption raw -o - "$INFO_PLIST")" == false ]] \
+  || fail "Info.plist must declare only exempt operating-system encryption"
 
 echo "release workflow source contracts passed"

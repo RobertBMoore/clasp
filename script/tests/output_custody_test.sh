@@ -82,6 +82,7 @@ make_package_fixture() {
   PACKAGE_ROOT="$TEMP_DIR/package-$label"
   mkdir -p "$PACKAGE_ROOT/script/lib" "$PACKAGE_ROOT/release"
   cp "$ROOT_DIR/script/package_direct_release.sh" "$PACKAGE_ROOT/script/package_direct_release.sh"
+  cp "$ROOT_DIR/script/lib/direct_signing.sh" "$PACKAGE_ROOT/script/lib/direct_signing.sh"
   cp "$ROOT_DIR/script/lib/output_custody.sh" "$PACKAGE_ROOT/script/lib/output_custody.sh"
   cp "$ROOT_DIR/release/config.env" "$PACKAGE_ROOT/release/config.env"
   chmod +x "$PACKAGE_ROOT/script/package_direct_release.sh"
@@ -89,6 +90,7 @@ make_package_fixture() {
 
 run_package() {
   CLASP_DEVELOPER_ID_APPLICATION='Developer ID Application: Fixture' \
+  CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' \
   CLASP_UPDATE_FEED_URL='https://example.invalid/appcast.xml' \
   CLASP_SPARKLE_PUBLIC_KEY='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' \
     "$PACKAGE_ROOT/script/package_direct_release.sh" 1.0.0 7
@@ -117,10 +119,19 @@ ln -s "$TEMP_DIR/package-external" "$PACKAGE_ROOT/release-output"
 expect_failure package-output-root-symlink run_package
 [[ -L "$PACKAGE_ROOT/release-output" ]]
 
+make_package_fixture missing-certificate-pin
+expect_failure package-missing-certificate-pin \
+  env \
+    CLASP_DEVELOPER_ID_APPLICATION='Developer ID Application: Fixture LLC (ZYXWV67890)' \
+    CLASP_UPDATE_FEED_URL='https://example.invalid/appcast.xml' \
+    CLASP_SPARKLE_PUBLIC_KEY='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' \
+    "$PACKAGE_ROOT/script/package_direct_release.sh" 1.0.0 7
+
 make_package_fixture unsafe-version
 expect_failure package-unsafe-version \
   env \
     CLASP_DEVELOPER_ID_APPLICATION='Developer ID Application: Fixture' \
+    CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' \
     CLASP_UPDATE_FEED_URL='https://example.invalid/appcast.xml' \
     CLASP_SPARKLE_PUBLIC_KEY='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' \
     "$PACKAGE_ROOT/script/package_direct_release.sh" '1.0.0/../../escape' 7

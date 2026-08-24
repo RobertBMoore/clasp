@@ -80,6 +80,8 @@ fi
   || app_store_die "bundle version mismatch"
 [[ "$(plutil -extract CFBundleVersion raw -o - "$INFO")" == "$BUILD_NUMBER" ]] \
   || app_store_die "bundle build number mismatch"
+[[ "$(plutil -extract ITSAppUsesNonExemptEncryption raw -o - "$INFO")" == false ]] \
+  || app_store_die "App Store bundle must declare only exempt operating-system encryption"
 [[ "$(plutil -extract LSMinimumSystemVersion raw -o - "$INFO")" == "$CLASP_MIN_MACOS" ]] \
   || app_store_die "minimum macOS version mismatch"
 [[ "$(plutil -extract ClaspPrivacyPolicyURL raw -o - "$INFO")" == "$CLASP_PRIVACY_POLICY_URL" ]] \

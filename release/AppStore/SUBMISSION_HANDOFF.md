@@ -4,18 +4,18 @@ Complete this record from the exact successful package workflow and App Store Co
 
 ## Source and package
 
-- Source commit SHA: `8f4dbc3dc32f500a766ecd421d06a26c9d81c2fe`
+- Source commit SHA: `39935e10a3c637e828b6d81c5ea284055f729da8`
 - Protected branch: `main`
-- GitHub package workflow run URL: not run; protected P12/password secrets are not yet available. The required source CI run `https://github.com/RobertBMoore/clasp/actions/runs/32779477288` passed the tree later squash-merged as the source commit above.
+- GitHub package workflow run URL: `https://github.com/RobertBMoore/clasp/actions/runs/32782947780`; both protected preflight and signed-package jobs passed against the exact source commit above. The review artifact expires on 2026-08-31. This is pipeline/signing evidence, not the final upload candidate: the build predates the Account Holder-approved `ITSAppUsesNonExemptEncryption=NO` declaration and must be regenerated from the merged declaration source.
 - Registered explicit Bundle ID / Apple identifier record: `Clasp` / `com.robertmoore.personalnotepad`, Paper LLC team `R3Z7H2TRCB`, verified live 2026-08-24
 - Expected Apple Developer Team ID from the account record (not artifact evidence): `R3Z7H2TRCB`
-- App Store Connect app record: `Clasp: Private Markdown Notes`, macOS 1.0, Apple app ID `6804786714`, `Prepare for Submission`, verified live 2026-08-24. The permanent SKU was verified in the authenticated account and is intentionally withheld from this public repository.
-- Version (`CFBundleShortVersionString`): `1.0.0` in the local review artifact. App Store Connect still showed version `1.0` on 2026-08-24; resolve this mismatch before upload.
+- App Store Connect app record: `Clasp: Private Markdown Notes`, macOS `1.0.0`, Apple app ID `6804786714`, `Prepare for Submission`, verified live 2026-08-24. Sign-in is not required and release is manual. The permanent SKU was verified in the authenticated account and is intentionally withheld from this public repository.
+- Version (`CFBundleShortVersionString`): `1.0.0`; the authenticated App Store Connect record and protected review artifact are aligned.
 - Build (`CFBundleVersion`): `8`
 - Last accepted build-number assertion, App Store Connect source, and checked date/time: protected environment assertion `0`; not revalidated against App Store Connect after the local build, so upload remains blocked.
-- Package filename: `Clasp-1.0.0-8-AppStore.pkg` (local review artifact; not uploaded)
-- Package SHA-256: `ade2c0ff47215deedd86d581ee4a4c362b309614a65da356aa649a5ae16641b6`
-- Package-payload parity result: exact path/type/mode/symlink/hash/xattr parity and script-free, non-relocatable `/Applications` PackageInfo policy passed locally on 2026-08-24.
+- Package filename: `Clasp-1.0.0-8-AppStore.pkg` (protected review-only workflow artifact; not uploaded)
+- Package SHA-256: `8ad90632a6c7255b0783c659c06e50b40c00aa7cecd7b5b5f0293fc834bc1fb9`
+- Package-payload parity result: exact path/type/mode/symlink/hash/xattr parity and script-free, non-relocatable `/Applications` PackageInfo policy passed on GitHub's `macos-26` runner on 2026-08-24. The workflow also removed its imported release credentials in the always-run cleanup step.
 - Privacy policy URL embedded in the signed app: `https://robertbmoore.github.io/clasp/privacy.html`
 - Signing Team ID observed from the exact packaged artifact: `R3Z7H2TRCB`
 - Mac App Distribution identity and SHA-256 fingerprint: `3rd Party Mac Developer Application: Paper LLC (R3Z7H2TRCB)` / `C7:1E:DE:4E:76:1A:DB:6E:3B:1F:8C:B3:EB:2C:81:7D:0D:EC:3E:3C:03:18:EE:C5:EC:84:68:60:4B:B0:AB:D7`, verified locally 2026-08-24
