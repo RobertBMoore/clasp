@@ -106,6 +106,7 @@ jobs:
           set -euo pipefail
           [[ ! -e Package.resolved && ! -L Package.resolved ]]
           find script -type f -name '*.sh' -print0 | xargs -0 bash -n
+          bash ./script/tests/direct_signing_test.sh
           ./script/tests/app_store_packaging_test.sh
           ./script/tests/direct_published_acceptance_contract_test.sh
           ./script/tests/output_custody_test.sh

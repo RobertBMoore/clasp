@@ -17,11 +17,21 @@ The direct bundle includes `Contents/Resources/Sparkle-LICENSE.txt`, copied byte
 
 Run the `Direct release draft` workflow manually after creating and pushing the exact `v<version>` tag. Configure a protected GitHub `release` environment with a required reviewer.
 
-Environment variables:
+Protected `release` environment variables used by the draft workflow:
 
 - `CLASP_UPDATE_FEED_URL`: `https://github.com/OWNER/REPOSITORY/releases/latest/download/appcast.xml`
 - `CLASP_SPARKLE_PUBLIC_KEY`: public EdDSA key printed by Sparkle `generate_keys`
 - `DEVELOPER_ID_APPLICATION_IDENTITY`: exact Keychain identity label
+- `DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256`: exact 64-character SHA-256 fingerprint of the selected Developer ID Application certificate
+
+The published-release event runs from a tag ref, while the protected `release` environment permits only protected branches. Therefore the same four non-secret values must also exist as repository Actions variables for `Published direct release acceptance`, using these deliberately distinct names:
+
+- `CLASP_PUBLISHED_UPDATE_FEED_URL`
+- `CLASP_PUBLISHED_SPARKLE_PUBLIC_KEY`
+- `CLASP_PUBLISHED_DEVELOPER_ID_APPLICATION_IDENTITY`
+- `CLASP_PUBLISHED_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256`
+
+Each repository value must exactly match its protected-environment counterpart. The distinct names prevent GitHub's repository-variable precedence from shadowing protected environment values during the draft job. Keep all private P12, notarization, and Sparkle signing credentials only in the protected environment; do not duplicate secrets as repository variables.
 
 Environment secrets:
 
@@ -32,7 +42,7 @@ Environment secrets:
 - `APP_STORE_CONNECT_ISSUER_ID`
 - `SPARKLE_PRIVATE_ED_KEY`
 
-The workflow fails closed when any input is absent, the repository is not public, or the build number is not greater than the latest published appcast build. It creates a **draft**, never a published release. Review the notarization result, signature, checksum, appcast URLs/signature, and release notes before manually publishing.
+The workflow fails closed when any input is absent, the repository is not public, the selected Developer ID identity and certificate fingerprint are not an exact match, or the build number is not greater than the latest published appcast build. Packaging resolves the pinned certificate to its SHA-1 Keychain identity selector, so multiple valid certificates may share the same display label without making `codesign` selection ambiguous; a missing or duplicate pinned certificate, or a pinned certificate without exactly one matching private-key identity, is rejected. The workflow creates a **draft**, never a published release. Review the notarization result, signature, checksum, appcast URLs/signature, and release notes before manually publishing.
 
 GitHub does not expose draft assets through the public `releases/latest/download` feed, so an exact production-feed update test is impossible while the candidate remains a draft. Immediately after a human publishes the release, the `Published direct release acceptance` workflow runs the verifier from the immutable workflow commit on the protected default branch—not from the release tag—binds the release tag to protected default-branch history, and compares anonymous downloads of the public `latest` appcast, release archive, and checksum byte-for-byte with the tagged assets. In archive-only mode, the verifier checks release names, checksum, appcast, and signatures before extracting the public archive into a private temporary directory, then validates the extracted app's Developer ID signature, notarization ticket, Gatekeeper result, bundle metadata, and Sparkle boundary. The acceptance receipt records both the release source SHA and trusted verifier SHA. This is post-publication detection and rollback evidence, not a pre-publication gate: an existing Sparkle client could poll during the acceptance window. Do not announce or intentionally distribute the release until that workflow passes and a clean Mac completes [`DIRECT_UPDATE_ACCEPTANCE.md`](DIRECT_UPDATE_ACCEPTANCE.md) for the real N→N+1 in-app update. If either check fails, immediately unpublish the release and investigate.
 
@@ -44,12 +54,13 @@ Never reuse the Developer ID certificate as the Sparkle signing key. Keep both p
 
 ### Offline artifact acceptance
 
-Before creating the draft, the workflow runs `script/verify_direct_release.sh` against the finished `release-output` directory. The verifier does not publish, make a network request, or accept a Developer ID or Sparkle private key. It requires only the expected Developer ID identity label, feed URL, and Sparkle **public** key.
+Before creating the draft, the workflow runs `script/verify_direct_release.sh` against the finished `release-output` directory. The verifier does not publish, make a network request, or accept a Developer ID or Sparkle private key. It requires only the expected Developer ID identity label and certificate SHA-256 fingerprint, feed URL, and Sparkle **public** key.
 
 For an equivalent local check:
 
 ```bash
 CLASP_DEVELOPER_ID_APPLICATION='Developer ID Application: Example Name (TEAMID1234)' \
+CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256='0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF' \
 CLASP_UPDATE_FEED_URL='https://github.com/OWNER/REPOSITORY/releases/latest/download/appcast.xml' \
 CLASP_SPARKLE_PUBLIC_KEY='BASE64_PUBLIC_KEY' \
 ./script/verify_direct_release.sh \
@@ -58,7 +69,7 @@ CLASP_SPARKLE_PUBLIC_KEY='BASE64_PUBLIC_KEY' \
   --require-notarization
 ```
 
-The gate rejects inexact archive/checksum names, stale parallel archives, checksum or archive-content mismatches, unsafe archive paths, unexpected bundle/feed/key metadata, missing hardened runtime or nested Developer ID signatures, any App Sandbox entitlement, and malformed or inconsistent appcast data. Sparkle is signed inside-out in its documented component order, with Downloader entitlements preserved and compared before/after signing; forced deep signing is never used. The gate compiles a dependency-free CryptoKit helper and cryptographically verifies both the update archive and signed feed against the configured Ed25519 public key, so signature-shaped text is never treated as proof. `--require-notarization` additionally requires a valid stapled ticket and Gatekeeper acceptance as `Notarized Developer ID`. The offline draft gate requires both the staged app and the byte-identical app extracted from its archive to pass. Public acceptance uses `--archive-only`, refuses a caller-supplied staged app, and validates only the app extracted from the downloaded public archive with the trusted default-branch verifier.
+The gate rejects inexact archive/checksum names, stale parallel archives, checksum or archive-content mismatches, unsafe archive paths, unexpected bundle/feed/key metadata, missing hardened runtime or nested Developer ID signatures, any signing leaf certificate that differs from the exact SHA-256 pin, any App Sandbox entitlement, and malformed or inconsistent appcast data. Sparkle is signed inside-out in its documented component order, with Downloader entitlements preserved and compared before/after signing; forced deep signing is never used. The gate compiles a dependency-free CryptoKit helper and cryptographically verifies both the update archive and signed feed against the configured Ed25519 public key, so signature-shaped text is never treated as proof. `--require-notarization` additionally requires a valid stapled ticket and Gatekeeper acceptance as `Notarized Developer ID`. The offline draft gate requires both the staged app and the byte-identical app extracted from its archive to pass. Public acceptance uses `--archive-only`, refuses a caller-supplied staged app, validates only the app extracted from the downloaded public archive with the trusted default-branch verifier, and records the expected Developer ID certificate fingerprint in its receipt.
 
 Run the deterministic no-key fixture checks with:
 

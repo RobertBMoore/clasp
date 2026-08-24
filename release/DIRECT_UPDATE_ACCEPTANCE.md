@@ -16,6 +16,7 @@ Use synthetic notes only. Never put real note bodies, Vault titles, recovery key
 - Published-acceptance receipt artifact URL:
 - Receipt source SHA matches N+1 tag:
 - Receipt verifier SHA matches trusted protected-branch workflow:
+- Receipt Developer ID Application certificate SHA-256 matches the selected release pin:
 - Public appcast URL:
 - Public appcast SHA-256:
 - N+1 public archive URL:
@@ -34,7 +35,7 @@ Use synthetic notes only. Never put real note bodies, Vault titles, recovery key
 ## Baseline N acceptance
 
 - `CFBundleShortVersionString` / `CFBundleVersion`:
-- Developer ID Application identity and Team ID:
+- Developer ID Application identity, Team ID, and certificate SHA-256 fingerprint:
 - `codesign --verify --deep --strict` result:
 - `xcrun stapler validate` result:
 - `spctl -a -vv -t exec` result (`Notarized Developer ID` required):
@@ -60,7 +61,7 @@ Use synthetic notes only. Never put real note bodies, Vault titles, recovery key
 ## Post-update N+1 acceptance
 
 - `/Applications/Clasp.app` now reports N+1 version/build:
-- Developer ID Application identity and Team ID unchanged/expected:
+- Developer ID Application identity, Team ID, and certificate SHA-256 fingerprint unchanged/expected:
 - `codesign --verify --deep --strict` result:
 - `xcrun stapler validate` result:
 - `spctl -a -vv -t exec` result (`Notarized Developer ID` required):

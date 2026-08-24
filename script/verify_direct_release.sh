@@ -9,6 +9,9 @@ export PATH
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../release/config.env
 source "$ROOT_DIR/release/config.env"
+# shellcheck source=lib/direct_signing.sh
+# shellcheck disable=SC1091
+source "$ROOT_DIR/script/lib/direct_signing.sh"
 
 SPARKLE_NAMESPACE="http://www.andymatuschak.org/xml-namespaces/sparkle"
 SIGNATURE_VERIFIER=""
@@ -221,6 +224,8 @@ signature_details_match() {
   local path="$1"
   local expected_identity="$2"
   local expected_team="$3"
+  local expected_certificate_sha256="$4"
+  local scratch="$5"
   local details
 
   details="$(/usr/bin/codesign -dvvv "$path" 2>&1)" || { reject "could not read code-signing details for $path"; return 1; }
@@ -228,21 +233,29 @@ signature_details_match() {
   /usr/bin/grep -Fqx "TeamIdentifier=$expected_team" <<< "$details" || { reject "unexpected signing team on $path"; return 1; }
   /usr/bin/grep -Eq '^flags=.*\(runtime\)' <<< "$details" || { reject "hardened runtime is missing on $path"; return 1; }
   /usr/bin/grep -Eq '^Timestamp=' <<< "$details" || { reject "trusted signing timestamp is missing on $path"; return 1; }
+  clasp_direct_require_signed_path_certificate \
+    "$path" "$expected_certificate_sha256" "$scratch" \
+    || { reject "unexpected signing certificate on $path"; return 1; }
 }
 
 validate_code_signing() {
   local app="$1"
   local expected_identity="$2"
   local expected_team="$3"
-  local scratch="$4"
+  local expected_certificate_sha256="$4"
+  local scratch="$5"
   local framework="$app/Contents/Frameworks/Sparkle.framework"
   local candidate component kind
   local macho_count=0
 
   /usr/bin/codesign --verify --deep --strict --verbose=4 "$app" >/dev/null 2>&1 || { reject "deep strict app signature verification failed"; return 1; }
   /usr/bin/codesign --verify --strict --verbose=4 "$framework" >/dev/null 2>&1 || { reject "Sparkle framework signature verification failed"; return 1; }
-  signature_details_match "$app" "$expected_identity" "$expected_team" || return 1
-  signature_details_match "$framework" "$expected_identity" "$expected_team" || return 1
+  signature_details_match \
+    "$app" "$expected_identity" "$expected_team" "$expected_certificate_sha256" "$scratch" \
+    || return 1
+  signature_details_match \
+    "$framework" "$expected_identity" "$expected_team" "$expected_certificate_sha256" "$scratch" \
+    || return 1
 
   for component in \
     "$framework/Versions/B/XPCServices/Installer.xpc" \
@@ -252,7 +265,9 @@ validate_code_signing() {
     [[ -e "$component" && ! -L "$component" ]] || { reject "required Sparkle signing component is missing or unsafe: $component"; return 1; }
     /usr/bin/codesign --verify --strict --verbose=4 "$component" >/dev/null 2>&1 \
       || { reject "Sparkle component signature verification failed: $component"; return 1; }
-    signature_details_match "$component" "$expected_identity" "$expected_team" || return 1
+    signature_details_match \
+      "$component" "$expected_identity" "$expected_team" "$expected_certificate_sha256" "$scratch" \
+      || return 1
   done
 
   /usr/bin/codesign -d --entitlements :- "$app" >"$scratch/entitlements.plist" 2>"$scratch/entitlements.log" || { reject "could not inspect app entitlements"; return 1; }
@@ -266,7 +281,9 @@ validate_code_signing() {
     [[ "$kind" == *Mach-O* ]] || continue
     macho_count=$((macho_count + 1))
     /usr/bin/codesign --verify --strict --verbose=4 "$candidate" >/dev/null 2>&1 || { reject "nested Mach-O signature verification failed: $candidate"; return 1; }
-    signature_details_match "$candidate" "$expected_identity" "$expected_team" || return 1
+    signature_details_match \
+      "$candidate" "$expected_identity" "$expected_team" "$expected_certificate_sha256" "$scratch" \
+      || return 1
     /usr/bin/codesign -d --entitlements :- "$candidate" >"$scratch/macho-$macho_count-entitlements.plist" 2>"$scratch/macho-$macho_count-entitlements.log" || { reject "could not inspect nested entitlements: $candidate"; return 1; }
     if /usr/bin/grep -Fq 'com.apple.security.app-sandbox' "$scratch/macho-$macho_count-entitlements.plist" "$scratch/macho-$macho_count-entitlements.log"; then
       reject "nested code unexpectedly enables App Sandbox: $candidate"
@@ -361,6 +378,10 @@ run_self_test() (
   validate_appcast "$appcast" "$version" "$build" "$archive_url" "$archive_length" "$CLASP_MIN_MACOS" "$archive" "$public_key"
   is_valid_public_key "$public_key" || fail "self-test rejected a valid public key shape"
   ! is_valid_public_key 'private-or-malformed' || fail "self-test accepted a malformed public key"
+  clasp_direct_is_valid_sha256 '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef' \
+    || fail "self-test rejected a valid certificate SHA-256 pin"
+  ! clasp_direct_is_valid_sha256 '0123456789abcdef' \
+    || fail "self-test accepted a malformed certificate SHA-256 pin"
   is_https_url "$archive_url" || fail "self-test rejected an HTTPS release URL"
   ! is_https_url 'http://example.invalid/appcast.xml' || fail "self-test accepted a non-HTTPS URL"
   ! is_valid_version '1.2.3;unexpected' || fail "self-test accepted an unsafe version"
@@ -431,10 +452,16 @@ is_https_url "$DOWNLOAD_PREFIX" || fail "download prefix must use HTTPS"
 RELEASE_DIR="$(cd "$RELEASE_DIR_INPUT" && pwd -P)"
 
 : "${CLASP_DEVELOPER_ID_APPLICATION:?set the expected Developer ID Application identity}"
+: "${CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256:?set the expected Developer ID Application certificate SHA-256 fingerprint}"
 : "${CLASP_UPDATE_FEED_URL:?set the expected HTTPS appcast URL}"
 : "${CLASP_SPARKLE_PUBLIC_KEY:?set the expected Sparkle public key}"
-[[ "$CLASP_DEVELOPER_ID_APPLICATION" =~ ^Developer[[:space:]]ID[[:space:]]Application:.+[[:space:]]\(([A-Z0-9]{10})\)$ ]] || fail "expected signing identity is not a Developer ID Application identity"
-EXPECTED_TEAM_ID="${BASH_REMATCH[1]}"
+EXPECTED_TEAM_ID="$(clasp_direct_team_id_from_identity \
+  "$CLASP_DEVELOPER_ID_APPLICATION")" \
+  || fail "expected signing identity is not a Developer ID Application identity"
+clasp_direct_is_valid_sha256 "$CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256" \
+  || fail "expected Developer ID certificate pin must be an exact 64-character SHA-256 fingerprint"
+EXPECTED_CERTIFICATE_SHA256="$(clasp_direct_uppercase_sha256 \
+  "$CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256")"
 is_https_url "$CLASP_UPDATE_FEED_URL" || fail "expected appcast URL must use HTTPS"
 is_valid_public_key "$CLASP_SPARKLE_PUBLIC_KEY" || fail "expected Sparkle public key is malformed"
 
@@ -470,7 +497,13 @@ fi
 for VERIFIED_APP in "${VERIFIED_APPS[@]}"; do
   APP_SCRATCH="$(/usr/bin/mktemp -d "$TEMP_DIR/app-check.XXXXXX")"
   validate_bundle_metadata "$VERIFIED_APP" "$VERSION" "$BUILD_NUMBER" "$CLASP_UPDATE_FEED_URL" "$CLASP_SPARKLE_PUBLIC_KEY" || fail "bundle metadata validation failed"
-  validate_code_signing "$VERIFIED_APP" "$CLASP_DEVELOPER_ID_APPLICATION" "$EXPECTED_TEAM_ID" "$APP_SCRATCH" || fail "code-signing validation failed"
+  validate_code_signing \
+    "$VERIFIED_APP" \
+    "$CLASP_DEVELOPER_ID_APPLICATION" \
+    "$EXPECTED_TEAM_ID" \
+    "$EXPECTED_CERTIFICATE_SHA256" \
+    "$APP_SCRATCH" \
+    || fail "code-signing validation failed"
   if [[ "$REQUIRE_NOTARIZATION" == "1" ]]; then
     validate_notarization "$VERIFIED_APP" || fail "notarization or Gatekeeper validation failed"
   fi
@@ -478,4 +511,5 @@ done
 
 echo "verified direct release: ${ARCHIVE##*/}"
 echo "archive sha256: $(/usr/bin/shasum -a 256 "$ARCHIVE" | /usr/bin/awk '{print $1}')"
+echo "developer id certificate sha256: $EXPECTED_CERTIFICATE_SHA256"
 echo "notarization required: $REQUIRE_NOTARIZATION"
