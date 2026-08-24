@@ -4,10 +4,12 @@ This copy is a draft for Robert's final approval.
 
 - App Store product name: **Clasp: Private Markdown Notes**
 - Installed app name: **Clasp**
+- Publisher: **Paper LLC**
 - Subtitle (30-character limit): **Catch notes. Keep them close.**
 - Primary category: **Productivity**
-- Support URL: **TBD — real public HTTPS support/contact page required**
-- Privacy Policy URL: **TBD — real public HTTPS privacy policy required**
+- Support URL: **https://robertbmoore.github.io/clasp/**
+- Support contact: **hello@paper.ai**
+- Privacy Policy URL: **https://robertbmoore.github.io/clasp/privacy.html**
 - Marketing URL: **TBD — optional**
 
 ## Screenshot candidates
