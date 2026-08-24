@@ -1,9 +1,59 @@
+import AppKit
 import Foundation
 import XCTest
 @testable import PersonalNotepad
 
 @MainActor
 final class DocumentStyleTests: XCTestCase {
+    func testDocumentFontChoicesResolveOnlyThroughMacOSSystemDesigns() {
+        XCTAssertEqual(
+            DocumentFontFamily.allCases.map(\.title),
+            ["SF Pro", "New York", "SF Pro Rounded", "SF Mono"]
+        )
+        XCTAssertEqual(DocumentFontFamily.system.systemDesign, .default)
+        XCTAssertEqual(DocumentFontFamily.serif.systemDesign, .serif)
+        XCTAssertEqual(DocumentFontFamily.rounded.systemDesign, .rounded)
+        XCTAssertEqual(DocumentFontFamily.monospaced.systemDesign, .monospaced)
+
+        for family in DocumentFontFamily.allCases {
+            let regular = family.resolvedFont(ofSize: 17)
+            let emphasized = family.resolvedFont(ofSize: 17, weight: .semibold)
+
+            XCTAssertEqual(regular.pointSize, 17)
+            XCTAssertEqual(emphasized.pointSize, 17)
+            XCTAssertFalse(regular.fontName.isEmpty)
+            XCTAssertFalse(emphasized.fontName.isEmpty)
+            XCTAssertEqual(regular.isFixedPitch, family == .monospaced)
+        }
+    }
+
+    func testEverySettingsPaneUsesOneStableContentEnvelope() {
+        let sizes = SettingsPane.allCases.map(SettingsLayoutMetrics.contentSize(for:))
+
+        XCTAssertEqual(sizes.count, SettingsPane.allCases.count)
+        XCTAssertTrue(sizes.allSatisfy { $0 == SettingsLayoutMetrics.fixedContentSize })
+        XCTAssertGreaterThan(SettingsLayoutMetrics.fixedContentSize.width, 0)
+        XCTAssertGreaterThan(SettingsLayoutMetrics.fixedContentSize.height, 0)
+        XCTAssertGreaterThanOrEqual(SettingsLayoutMetrics.minimumDocumentPreviewWidth, 400)
+        XCTAssertGreaterThan(SettingsLayoutMetrics.messageSlotHeight, 0)
+        XCTAssertGreaterThan(SettingsLayoutMetrics.presetDescriptionHeight, 0)
+        XCTAssertGreaterThan(SettingsLayoutMetrics.adjustmentStatusHeight, 0)
+        XCTAssertEqual(
+            SettingsPane.allCases.map(\.title),
+            ["Appearance", "Documents", "Shortcuts & Capture", "Vault", "Clipboard"]
+        )
+        XCTAssertGreaterThanOrEqual(SettingsLayoutMetrics.shortcutFeedbackHeight, 44)
+        XCTAssertGreaterThanOrEqual(SettingsLayoutMetrics.shortcutRowMinimumHeight, 120)
+        XCTAssertGreaterThanOrEqual(SettingsLayoutMetrics.shortcutKeycapMinimumWidth, 100)
+        XCTAssertEqual(SettingsLayoutMetrics.simpleCardSize, CGSize(width: 620, height: 176))
+        XCTAssertEqual(SettingsLayoutMetrics.shortcutFeedbackHeight, 48)
+        XCTAssertEqual(
+            SettingsLayoutMetrics.shortcutRecorderDefaultSize,
+            CGSize(width: 460, height: 280)
+        )
+        XCTAssertEqual(SettingsLayoutMetrics.shortcutRecorderMessageMinimumHeight, 44)
+    }
+
     func testBalancedIsTheApplicationDefault() {
         assertStyle(
             .balanced,

@@ -25,6 +25,8 @@ if grep -F 'ref: ${{ github.event.release.tag_name }}' "$WORKFLOW" >/dev/null; t
 fi
 
 require_literal 'ref: ${{ github.workflow_sha }}'
+require_literal 'cancel-in-progress: false'
+require_literal 'queue: max'
 require_literal 'persist-credentials: false'
 require_literal 'path: trusted-source'
 require_literal "--jq '.protected'"

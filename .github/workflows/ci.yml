@@ -11,6 +11,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
       - name: Test and validate the local channel
         run: ./script/build_and_run.sh --build-only
       - name: Test the App Store compilation boundary
@@ -19,9 +21,10 @@ jobs:
         run: |
           set -euo pipefail
           source release/config.env
-          test ! -e Package.resolved
+          [[ ! -e Package.resolved && ! -L Package.resolved ]]
           swift test \
             --scratch-path .build-app-store-ci \
+            --configuration release \
             --arch "$CLASP_ARCH" \
             -Xswiftc -DCLASP_APP_STORE
           swift build \
@@ -37,25 +40,50 @@ jobs:
             --show-bin-path)/Clasp"
           test -x "$STORE_BIN"
           test "$(lipo -archs "$STORE_BIN")" = "$CLASP_ARCH"
-          if otool -L "$STORE_BIN" | grep -F 'Sparkle.framework/'; then
+          if ! STORE_LINKS="$(otool -L "$STORE_BIN" 2>&1)"; then
+            echo "Could not inspect App Store binary dependencies" >&2
+            printf '%s\n' "$STORE_LINKS" >&2
+            exit 1
+          fi
+          if grep -F 'Sparkle.framework/' <<<"$STORE_LINKS"; then
             echo "App Store binary unexpectedly links Sparkle" >&2
             exit 1
           fi
-          if nm -u "$STORE_BIN" | grep -Eq \
-              'CGPreflightPostEventAccess|CGRequestPostEventAccess|CGEventCreateKeyboardEvent|CGEventPost'; then
+          if ! STORE_SYMBOLS="$(nm -u "$STORE_BIN" 2>&1)"; then
+            echo "Could not inspect App Store binary symbols" >&2
+            printf '%s\n' "$STORE_SYMBOLS" >&2
+            exit 1
+          fi
+          if grep -Eq \
+              'CGPreflightPostEventAccess|CGRequestPostEventAccess|CGEventCreateKeyboardEvent|CGEventPost' \
+              <<<"$STORE_SYMBOLS"; then
             echo "App Store binary unexpectedly contains Accessibility capture symbols" >&2
             exit 1
           fi
-          test ! -e Package.resolved
+          [[ ! -e Package.resolved && ! -L Package.resolved ]]
       - name: Test the direct-download compilation boundary
         env:
           CLASP_DIRECT_DISTRIBUTION: "1"
         run: |
           set -euo pipefail
           source release/config.env
-          test ! -e Package.resolved
-          cp release/Package.direct.resolved Package.resolved
-          trap 'rm -f Package.resolved' EXIT
+          source script/lib/direct_package_resolution.sh
+          clasp_install_direct_package_resolution Package.resolved release/Package.direct.resolved
+          cleanup_direct_resolution() {
+            local status=$?
+            trap - EXIT
+            if ! clasp_remove_direct_package_resolution Package.resolved release/Package.direct.resolved; then
+              status=1
+            fi
+            exit "$status"
+          }
+          trap cleanup_direct_resolution EXIT
+          swift test \
+            --scratch-path .build-direct-ci \
+            --configuration release \
+            --arch "$CLASP_ARCH" \
+            --force-resolved-versions \
+            -Xswiftc -DCLASP_DIRECT_DISTRIBUTION
           swift build \
             --scratch-path .build-direct-ci \
             --configuration release \
@@ -72,16 +100,18 @@ jobs:
           test -x "$DIRECT_BIN"
           test "$(lipo -archs "$DIRECT_BIN")" = "$CLASP_ARCH"
           otool -L "$DIRECT_BIN" | grep -F '@rpath/Sparkle.framework/'
-          cmp -s Package.resolved release/Package.direct.resolved
+          clasp_verify_direct_package_resolution Package.resolved release/Package.direct.resolved
       - name: Validate release-script contracts
         run: |
           set -euo pipefail
-          test ! -e Package.resolved
+          [[ ! -e Package.resolved && ! -L Package.resolved ]]
           find script -type f -name '*.sh' -print0 | xargs -0 bash -n
           ./script/tests/app_store_packaging_test.sh
           ./script/tests/direct_published_acceptance_contract_test.sh
           ./script/tests/output_custody_test.sh
           ./script/tests/install_and_publish_custody_test.sh
+          ./script/tests/direct_package_resolution_test.sh
+          ./script/tests/release_workflow_contract_test.sh
           ./script/lib/validate_public_https_url.sh --self-test
           ./script/verify_direct_release.sh --self-test
-          test ! -e Package.resolved
+          [[ ! -e Package.resolved && ! -L Package.resolved ]]

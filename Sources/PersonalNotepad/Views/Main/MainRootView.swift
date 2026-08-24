@@ -12,6 +12,7 @@ struct MainRootView: View {
     @State private var selectedNoteID: UUID?
 #endif
     @State private var query = ""
+    @State private var shortcutPreferences = GlobalHotKeyPreferences.shared
 
     var body: some View {
         NavigationSplitView {
@@ -84,7 +85,7 @@ struct MainRootView: View {
                         systemImage: AppIcon.Create.note
                     )
                 }
-                .help(destination == .vault ? "New Private Vault Note — Command-N" : "New Note — Command-N")
+                .help(destination == .vault ? "New Secure Vault Note — Command-N" : "New Note — Command-N")
 
                 if destination != .vault {
                     Button {
@@ -102,7 +103,7 @@ struct MainRootView: View {
                     Button { appState.lockVault() } label: {
                         Label("Lock Vault", systemImage: AppIcon.Vault.lockNow)
                     }
-                    .help("Lock Vault — Control-Option-Command-L")
+                    .help(lockVaultHelp)
                 }
             }
         }
@@ -117,6 +118,13 @@ struct MainRootView: View {
             destination = .inbox
             selectedNoteID = appState.createRegular()
         }
+    }
+
+    private var lockVaultHelp: String {
+        guard let shortcut = shortcutPreferences.shortcut(for: .lockVault) else {
+            return "Lock Vault — No global shortcut"
+        }
+        return "Lock Vault — \(shortcut.displayName)"
     }
 
     private func fulfillPendingMainNoteRequests() {

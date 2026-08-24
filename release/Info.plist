@@ -28,8 +28,8 @@
       <key>NSSendFileTypes</key><array><string>public.image</string></array>
     </dict>
     <dict>
-      <key>NSMenuItem</key><dict><key>default</key><string>Create Private Note in Clasp</string></dict>
-      <key>NSServiceDescription</key><string>Creates an encrypted Clasp Vault note from selected text, a link, or an image.</string>
+      <key>NSMenuItem</key><dict><key>default</key><string>Create Secure Note in Clasp</string></dict>
+      <key>NSServiceDescription</key><string>Creates a secure encrypted Clasp Vault note from selected text, a link, or an image.</string>
       <key>NSMessage</key><string>addToClaspVault</string>
       <key>NSKeyEquivalent</key><dict><key>default</key><string>^~p</string></dict>
       <key>NSPortName</key><string>Clasp</string>

@@ -41,15 +41,20 @@ final class ApplicationBridgeTests: XCTestCase {
         }
         XCTAssertEqual(
             Set(quickCapture.map(\.displayName)),
-            ["Option-Space", "Control-Option-Command-N"]
+            ["Option-Space", "Control-Option-Command-Space"]
         )
         XCTAssertEqual(Set(GlobalHotKeyManager.definitions.map(\.action)).count, GlobalHotKeyManager.definitions.count)
     }
 
-    func testClipboardHotKeysAreRetiredInFavorOfSelectionServices() {
-        XCTAssertFalse(GlobalHotKeyManager.definitions.contains {
+    func testClipboardHotKeysRemainAvailableWithoutAccessibility() {
+        let clipboardShortcuts = GlobalHotKeyManager.definitions.filter {
             $0.action.notification == .saveClipboard || $0.action.notification == .saveClipboardToVault
-        })
+        }
+        XCTAssertEqual(
+            Set(clipboardShortcuts.map(\.displayName)),
+            ["Control-Option-Command-C", "Control-Option-Command-V"]
+        )
+
         let selectionShortcuts = GlobalHotKeyManager.definitions.filter {
             $0.action.notification == .captureSelectionToInbox
                 || $0.action.notification == .captureSelectionToVault
@@ -57,11 +62,15 @@ final class ApplicationBridgeTests: XCTestCase {
         if DistributionCapabilities.supportsAccessibilitySelectionCapture {
             XCTAssertEqual(
                 Set(selectionShortcuts.map(\.displayName)),
-                ["Control-Option-N", "Control-Option-P"]
+                ["Control-Option-Shift-N", "Control-Option-Shift-P"]
             )
         } else {
             XCTAssertTrue(selectionShortcuts.isEmpty)
         }
+
+        let serviceDefaults = Set(MacOSCaptureServiceDescriptor.all.map(\.defaultShortcut))
+        XCTAssertTrue(Set(clipboardShortcuts.map(\.shortcut.symbolDisplayName)).isDisjoint(with: serviceDefaults))
+        XCTAssertTrue(Set(selectionShortcuts.map(\.shortcut.symbolDisplayName)).isDisjoint(with: serviceDefaults))
     }
 
     func testKeyboardSettingsSetupLinkTargetsTheKeyboardPane() {

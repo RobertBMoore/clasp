@@ -10,6 +10,7 @@ permissions:
 concurrency:
   group: clasp-direct-published-acceptance
   cancel-in-progress: false
+  queue: max
 
 jobs:
   verify-public-release:

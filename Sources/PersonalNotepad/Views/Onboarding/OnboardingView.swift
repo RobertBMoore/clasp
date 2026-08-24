@@ -8,6 +8,7 @@ struct OnboardingView: View {
     @State private var step: OnboardingStep = .welcome
     @State private var capturingClipboard = false
     @State private var vaultWorking = false
+    @State private var shortcutPreferences = GlobalHotKeyPreferences.shared
 
     var body: some View {
         HStack(spacing: 0) {
@@ -119,8 +120,8 @@ struct OnboardingView: View {
                     }
                 }
                 Text(DistributionCapabilities.supportsAccessibilitySelectionCapture
-                    ? "Control–Option–N creates a normal note; Control–Option–P creates a private note. Accessibility lets Clasp issue one Copy command for the current selection. The right-click Services remain available without it."
-                    : "Choose Create Note in Clasp or Create Private Note in Clasp from the source app’s Services menu. This build does not request Accessibility permission or simulate Copy.")
+                    ? "\(shortcutWords(.captureSelectionToInbox)) creates a normal Inbox note; \(shortcutWords(.captureSelectionToVault)) creates a secure Vault note. Accessibility lets Clasp issue one Copy command for the current selection. The right-click Services remain available without it."
+                    : "Choose \(MacOSCaptureServiceDescriptor.all[0].title) or \(MacOSCaptureServiceDescriptor.all[1].title) from the source app’s Services menu. This build does not request Accessibility permission or simulate Copy.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -189,6 +190,11 @@ struct OnboardingView: View {
             }
         }
         .padding(16)
+    }
+
+    private func shortcutWords(_ action: GlobalHotKeyAction) -> String {
+        shortcutPreferences.shortcut(for: action)?
+            .displayName.replacingOccurrences(of: "-", with: "–") ?? "No shortcut"
     }
 
     private func move(by offset: Int) {

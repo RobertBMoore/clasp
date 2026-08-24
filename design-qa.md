@@ -1,7 +1,46 @@
 # Clasp document-style visual QA
 
+## Build 8 acceptance supplement
+
+Date: 2026-08-24
+Current result: **passed for the installed local product; external release gates remain separate**
+
+The final Build 8 QA application was staged as `/private/tmp/Clasp Visual QA build8 20260824-0233-docfit.app`. The production local bundle was then built, validated, installed at `/Applications/Clasp.app`, and launched successfully. Its identity is `com.robertmoore.personalnotepad`, version `1.0.0` (build `8`), architecture `arm64`; the installed and staged executables share SHA-256 `4d2f40064649806b91babce2b4eef3617dd948494087799134cba4816a297d46`. The installed bundle passes strict deep code-signature validation with its expected local ad-hoc signature and contains no Sparkle linkage. This is local installation evidence, not Apple distribution signing or notarization evidence.
+
+### Current interaction acceptance
+
+- Page and Markdown remain a source-exact two-way editor. Switching modes, typing, selecting text, and applying inline or block formatting preserve selection and scroll position without observed layout jumps.
+- Applying Italic to a selected phrase kept the selection in place and changed only that phrase to `*selected text*` in Markdown.
+- Applying Heading 2 to a mid-line selection isolated only that selection on its own `##` line while leaving the surrounding source intact.
+- Clicking a Page-mode checklist control changed exactly one source marker from `- [ ]` to `- [x]`.
+- The in-app Style menu stayed inside the editor pane, supported keyboard dismissal with Escape, and dismissed on click-away without moving the document.
+- Every Settings tab was inspected at the fixed window size. Appearance changed atomically among Light, Dark, and System; Documents fit the initial viewport without clipping or a surprise scrollbar; Clipboard and Vault warning states retained stable geometry.
+- The shortcut recorder exposed clear Replace, Clear, Cancel, Reset, conflict, and availability states. macOS Services and one-step selection/clipboard shortcut paths were visible without hiding the instructions behind a disclosure control.
+- The installed `/Applications/Clasp.app` launched into an accessible native window after installation.
+
+### Current visual evidence
+
+- Style menu in bounds: `/var/folders/nx/6dvbxncx749gjsx418vtyv6m0000gn/T/com.openai.sky.CUAService/Clasp Visual QA Screenshot 2026-08-24 at 2.27.10 AM.jpeg`
+- Documents settings fit: `/var/folders/nx/6dvbxncx749gjsx418vtyv6m0000gn/T/com.openai.sky.CUAService/Clasp Visual QA Screenshot 2026-08-24 at 2.32.52 AM.jpeg`
+- Dark settings: `/var/folders/nx/6dvbxncx749gjsx418vtyv6m0000gn/T/com.openai.sky.CUAService/Clasp Visual QA Screenshot 2026-08-24 at 2.33.10 AM.jpeg`
+- Dark main window: `/var/folders/nx/6dvbxncx749gjsx418vtyv6m0000gn/T/com.openai.sky.CUAService/Clasp Visual QA Screenshot 2026-08-24 at 2.33.22 AM.jpeg`
+- Final light Page view: `/var/folders/nx/6dvbxncx749gjsx418vtyv6m0000gn/T/com.openai.sky.CUAService/Clasp Visual QA Screenshot 2026-08-24 at 2.34.28 AM.jpeg`
+- Installed-app launch: `/var/folders/nx/6dvbxncx749gjsx418vtyv6m0000gn/T/com.openai.sky.CUAService/Clasp Screenshot 2026-08-24 at 2.44.24 AM.jpeg`
+
+Reference and implementation captures were also viewed as combined comparisons at `/private/tmp/clasp-editor-reference-final.png`, `/private/tmp/clasp-theme-reference-final.png`, and `/private/tmp/clasp-docsettings-reference-final.png`. The Build 8 implementation retains the requested three-pane Mac structure while improving the editor with a centered paper surface, native checkboxes, stable full Markdown controls, atomic semantic appearance, and balanced document settings. No P0-P2 visual or editor-interaction defect remained in this acceptance pass.
+
+### Current automated boundaries
+
+- Local Release, arm64: 185/185 tests passed; Sparkle absent.
+- App Store Release, arm64: 179/179 tests passed; Sparkle and forbidden direct-capture symbols absent.
+- Direct Release, arm64: 185/185 tests passed with the locked Sparkle 2.9.6 dependency.
+- Focused document and release UI acceptance: 26/26 tests passed after the final settings-fit adjustment.
+- Workflow syntax, shell lint, packaging fixtures, dependency-lock custody, direct-update acceptance contracts, and release workflow contract tests passed.
+
+The following Build 7 record is retained as historical comparison evidence.
+
 Date: 2026-08-23
-Final result: **passed**
+Historical result: **passed**
 
 ## Comparison target
 

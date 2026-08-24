@@ -178,9 +178,9 @@ private extension SidebarDestination {
         case .pinned:
             ("No Pinned Notes", AppIcon.Navigation.pinned, "Pin a note to keep it close at hand.")
         case .vault where !isVaultUnlocked:
-            ("Vault Locked", AppIcon.Vault.locked, "Unlock the Vault to see private notes.")
+            ("Vault Locked", AppIcon.Vault.locked, "Unlock the Vault to see secure notes.")
         case .vault:
-            ("No Vault Notes", AppIcon.Vault.secureDocument, "Create a private note to get started.")
+            ("No Vault Notes", AppIcon.Vault.secureDocument, "Create a secure Vault note to get started.")
         case .trash:
             ("Trash Is Empty", AppIcon.Navigation.trash, "Deleted notes remain here until you remove them permanently.")
         case .tag(let tag):

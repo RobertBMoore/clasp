@@ -123,4 +123,5 @@ final class RichTextEditingTests: XCTestCase {
 
         XCTAssertEqual(destinations, ["https://example.com"])
     }
+
 }

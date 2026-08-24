@@ -403,7 +403,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.vaultNotes?.first?.contentType, .image)
         XCTAssertEqual(state.vaultNotes?.first?.attachments.first?.data, image.pngData)
         XCTAssertTrue(state.vaultNotes?.first?.tags.contains("landscape") == true)
-        XCTAssertEqual(state.statusMessage, "Private note added to Vault")
+        XCTAssertEqual(state.statusMessage, "Secure note added to Vault")
     }
 
     func testPermanentDeleteRestoresNotesWhenPersistenceFails() async {
@@ -457,6 +457,54 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(clipboard.clearCount, 0)
         XCTAssertEqual(state.vaultNotes, [])
         XCTAssertNotNil(state.presentedError)
+    }
+
+    func testManualVaultLockCancelsClipboardCaptureStillBeingClassified() async {
+        let defaults = UserDefaults.standard
+        let previousDelay = defaults.string(forKey: PreferenceKeys.clipboardClearDelay)
+        defaults.set(ClipboardClearDelay.immediately.rawValue, forKey: PreferenceKeys.clipboardClearDelay)
+        defer {
+            if let previousDelay { defaults.set(previousDelay, forKey: PreferenceKeys.clipboardClearDelay) }
+            else { defaults.removeObject(forKey: PreferenceKeys.clipboardClearDelay) }
+        }
+
+        let classifier = BlockingContentClassifier(
+            result: ClassifiedCapture(
+                title: "Must remain cancelled",
+                body: "Do not reopen the Vault",
+                tags: ["secure"],
+                contentType: .note,
+                attachments: [],
+                extractedText: ""
+            )
+        )
+        let clipboard = FakeStateClipboard(
+            snapshot: ClipboardSnapshot(value: "Do not clear me", changeCount: 13)
+        )
+        let vault = MemoryVaultStore()
+        let state = AppState(
+            regularStore: MemoryRegularStore(),
+            vaultStore: vault,
+            clipboard: ClipboardService(client: clipboard),
+            classifier: classifier
+        )
+        await state.start()
+
+        let captureTask = Task { @MainActor in
+            await state.saveClipboardToVaultAndClear()
+        }
+        await classifier.waitUntilClassificationStarted()
+
+        state.lockVault()
+        await vault.waitUntilLocked()
+        await classifier.resumeClassification()
+        await captureTask.value
+        try? await Task.sleep(for: .milliseconds(40))
+
+        XCTAssertNil(state.vaultNotes)
+        XCTAssertTrue(vault.snapshot().isEmpty)
+        XCTAssertEqual(clipboard.clearCount, 0)
+        XCTAssertEqual(clipboard.snapshot?.content, .text("Do not clear me"))
     }
 
     func testVaultImportReadsAtMostConfiguredMaximumPlusOne() async throws {

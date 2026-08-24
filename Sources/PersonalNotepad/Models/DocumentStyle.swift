@@ -1,4 +1,4 @@
-import CoreGraphics
+import AppKit
 import Foundation
 
 enum DocumentFontFamily: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -11,20 +11,47 @@ enum DocumentFontFamily: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .system: "System Document"
-        case .serif: "System Serif"
-        case .rounded: "System Rounded"
-        case .monospaced: "System Monospaced"
+        case .system: "SF Pro"
+        case .serif: "New York"
+        case .rounded: "SF Pro Rounded"
+        case .monospaced: "SF Mono"
         }
     }
 
     var detail: String {
         switch self {
-        case .system: "Uses your Mac's familiar document typeface."
-        case .serif: "Adds stronger shape cues for relaxed long-form reading."
-        case .rounded: "A softer system face for informal notes."
-        case .monospaced: "Keeps technical text and symbols evenly aligned."
+        case .system: "Apple's clear, familiar system sans serif."
+        case .serif: "Apple's system serif for comfortable long-form reading."
+        case .rounded: "A softer system face for personal and informal notes."
+        case .monospaced: "Apple's fixed-width system face for technical text."
         }
+    }
+
+    /// Maps every user-facing choice to an AppKit system design. Clasp never
+    /// accepts or persists arbitrary font names, so a missing or renamed font
+    /// cannot leave documents unreadable after a macOS update.
+    @MainActor
+    var systemDesign: NSFontDescriptor.SystemDesign {
+        switch self {
+        case .system: .default
+        case .serif: .serif
+        case .rounded: .rounded
+        case .monospaced: .monospaced
+        }
+    }
+
+    /// Resolves the current macOS implementation of the selected system family.
+    /// The fallback deliberately remains a system font at the requested size
+    /// and weight instead of reaching for a hard-coded PostScript name.
+    @MainActor
+    func resolvedFont(ofSize size: CGFloat, weight: NSFont.Weight = .regular) -> NSFont {
+        let base = NSFont.systemFont(ofSize: size, weight: weight)
+        guard systemDesign != .default,
+              let descriptor = base.fontDescriptor.withDesign(systemDesign),
+              let font = NSFont(descriptor: descriptor, size: size) else {
+            return base
+        }
+        return font
     }
 }
 

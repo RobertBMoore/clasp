@@ -399,6 +399,11 @@ final class AppState {
         beginPersistenceMutation()
         defer { finishPersistenceMutation() }
 
+        // A manual Lock is an explicit cancellation boundary for an accepted
+        // secure capture. Remember the boundary before classification so an
+        // in-flight classifier can never finish later and reopen the Vault.
+        let acceptedVaultGeneration = destination == .vault ? vaultOperationGeneration : nil
+
         let classified = await classifier.classify(content)
         switch destination {
         case .inbox:
@@ -416,8 +421,10 @@ final class AppState {
             showStatus("Normal note added to Inbox")
             return true
         case .vault:
+            guard acceptedVaultGeneration == vaultOperationGeneration else { return false }
             guard !isVaultImporting else { return false }
             guard await ensureVaultUnlockedForAcceptedMutation() else { return false }
+            guard acceptedVaultGeneration == vaultOperationGeneration else { return false }
             guard !isVaultImporting else { return false }
             let note = classified.note()
             vaultNotes?.insert(note, at: 0)
@@ -431,7 +438,7 @@ final class AppState {
                 present(error)
                 return false
             }
-            showStatus("Private note added to Vault")
+            showStatus("Secure note added to Vault")
             return true
         }
     }
@@ -448,8 +455,8 @@ final class AppState {
         clipboard.scheduleSafeClear(of: snapshot, after: delay.duration)
         showStatus(
             delay == .never
-                ? "Private note added to Vault"
-                : "Private note added to Vault; clipboard clear scheduled"
+                ? "Secure note added to Vault"
+                : "Secure note added to Vault; clipboard clear scheduled"
         )
     }
 

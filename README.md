@@ -37,22 +37,25 @@ Direct GitHub releases and Mac App Store builds use separate, credential-gated p
 ## The easy way to remember Clasp
 
 - **Option-Space** opens Quick Capture from anywhere. This is the only shortcut most people need.
-- If another app already owns **Option-Space**, **Control-Option-Command-N** is the built-in Quick Capture fallback.
-- In local and direct builds, selected content can use **Control-Option-N** for a normal Inbox note or **Control-Option-P** for a private Vault note: N for Normal, P for Private. The App Store build uses the two right-click Services instead and never requests Accessibility access.
+- If another app already owns **Option-Space**, **Control-Option-Command-Space** is the built-in Quick Capture fallback.
+- After copying text, Markdown, a link, or an image, use **Control-Option-Command-C** for a normal Inbox note or **Control-Option-Command-V** for a secure Vault note. These shortcuts work without Accessibility access.
+- In local and direct builds, selected content can use **Control-Option-Shift-N** for a normal Inbox note or **Control-Option-Shift-P** for a secure Vault note. The App Store build uses the two right-click Services instead and never requests Accessibility access.
 - Click the **Clasp menu bar icon** to add the current text/image clipboard to Clasp or directly to Vault.
 - **Right-click Clasp in the Dock** for both clipboard destinations, Quick Capture, Open Clasp, or Lock Vault.
-- Right-click selected text, an image, or a link and choose **Services › Create Note in Clasp** or **Create Private Note in Clasp**.
+- Right-click selected text, an image, or a link and choose **Services › Create Note in Clasp** or **Create Secure Note in Clasp**.
 - Inside Clasp, right-click a note to pin, archive, trash, or restore it.
 
 ## Capture workflows
 
 | Workflow | Default shortcut | Result |
 | --- | --- | --- |
-| New note | `Command-N` | Creates a private Vault note while viewing Vault; otherwise creates a regular note in Inbox |
+| New note | `Command-N` | Creates a secure Vault note while viewing Vault; otherwise creates a regular note in Inbox |
 | New Vault note | `Shift-Command-N` | Authenticates if needed, then creates a Vault note |
-| Quick Capture | `Option-Space` (fallback: `Control-Option-Command-N`) | Opens a focused floating capture window; `Command-Return` saves and `Escape` cancels |
-| Selected content to Inbox | Local/direct: `Control-Option-N`; Store: Services | Saves the selected text, link, or image as a normal note |
-| Selected content to Vault | Local/direct: `Control-Option-P`; Store: Services | Saves the selected text, link, or image as a private note |
+| Quick Capture | `Option-Space` (fallback: `Control-Option-Command-Space`) | Opens a focused floating capture window; `Command-Return` saves and `Escape` cancels |
+| Copied content to Inbox | `Control-Option-Command-C` | Saves copied text, Markdown, a link, or an image as a normal note |
+| Copied content to Vault | `Control-Option-Command-V` | Saves copied text, Markdown, a link, or an image as a secure Vault note |
+| Selected content to Inbox | Local/direct: `Control-Option-Shift-N`; Store: Services | Saves the selected text, link, or image as a normal note |
+| Selected content to Vault | Local/direct: `Control-Option-Shift-P`; Store: Services | Saves the selected text, link, or image as a secure Vault note |
 | Add Clipboard to Clasp | Menu bar or Dock | Saves the current text, link, or image to Inbox |
 | Add Clipboard to Vault | Menu bar or Dock | Saves the current text, link, or image to Vault and, unless Settings is set to Never, safely clears the captured clipboard value |
 | Lock Vault | `Control-Option-Command-L` | Immediately evicts decrypted Vault state and the in-memory key |
@@ -92,13 +95,13 @@ Copied RTF and HTML use a separate, local import path. Clasp keeps supported doc
 After installing or launching Clasp, enable its two actions once:
 
 1. Open **System Settings › Keyboard › Keyboard Shortcuts… › Services › Text**.
-2. Turn on **Create Note in Clasp** and **Create Private Note in Clasp**.
+2. Turn on **Create Note in Clasp** and **Create Secure Note in Clasp**.
 
-In local and direct builds, **Control-Option-N** creates a normal Inbox note and **Control-Option-P** creates an encrypted Vault note. The first shortcut use asks for one-time approval under **System Settings › Privacy & Security › Accessibility** so Clasp can issue one `Command-C`; it does not listen to or monitor keyboard input. The App Store build compiles this Accessibility path out and uses Services only.
+In local and direct builds, **Control-Option-Shift-N** creates a normal Inbox note and **Control-Option-Shift-P** creates a secure Vault note from the current selection. The first shortcut use asks for one-time approval under **System Settings › Privacy & Security › Accessibility** so Clasp can issue one `Command-C`; it does not listen to or monitor keyboard input. The App Store build compiles this Accessibility path out and uses Services only.
 
-You can also right-click selected styled text, an image, or a link and choose **Services › Create Note in Clasp** or **Create Private Note in Clasp**. The standard `NSServices` mechanism accepts plain text, URLs, RTF, sanitized HTML, common image types, and image file URLs without Accessibility permission. Clasp's onboarding and Help provide buttons for both Accessibility and Service settings.
+You can also right-click selected styled text, an image, or a link and choose **Services › Create Note in Clasp** or **Create Secure Note in Clasp**. The standard `NSServices` mechanism accepts plain text, URLs, RTF, sanitized HTML, common image types, and image file URLs without Accessibility permission. Clasp's onboarding and Help provide buttons for both Accessibility and Service settings.
 
-macOS and the source app decide which Services appear for an image or link. If a particular app does not expose the content to Services, copy it and use Clasp's menu-bar or Dock clipboard action instead. To change either default Service shortcut, open **System Settings › Keyboard › Keyboard Shortcuts… › Services › Text** and find the two Create Note in Clasp entries.
+macOS and the source app decide which Services appear for an image or link. If a particular app does not expose the content to Services, copy it and use Clasp's clipboard shortcut, menu-bar action, or Dock action instead. To change either default Service shortcut, open **System Settings › Keyboard › Keyboard Shortcuts… › Services › Text** and find the two Clasp entries.
 
 ## Data locations
 

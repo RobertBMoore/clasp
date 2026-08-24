@@ -34,10 +34,30 @@ final class ClipboardAndPreferencesTests: XCTestCase {
 
     func testAppearanceDefaultsToSystemAndMapsEveryOption() {
         XCTAssertEqual(AppAppearance(rawValue: "missing") ?? .system, .system)
-        XCTAssertNil(AppAppearance.system.colorScheme)
-        XCTAssertEqual(AppAppearance.light.colorScheme, .light)
-        XCTAssertEqual(AppAppearance.dark.colorScheme, .dark)
         XCTAssertEqual(AppAppearance.allCases.map(\.title), ["System", "Light", "Dark"])
+    }
+
+    func testApplicationAppearanceControllerUsesOneNativeAppearanceForEveryTheme() throws {
+        let suite = "PersonalNotepadTests.Appearance.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let application = FakeApplicationAppearance()
+
+        XCTAssertNil(AppAppearanceController.appearanceName(for: .system))
+        XCTAssertEqual(AppAppearanceController.appearanceName(for: .light), .aqua)
+        XCTAssertEqual(AppAppearanceController.appearanceName(for: .dark), .darkAqua)
+
+        defaults.set(AppAppearance.dark.rawValue, forKey: PreferenceKeys.appAppearance)
+        AppAppearanceController.applyStoredPreference(defaults: defaults, to: application)
+        XCTAssertEqual(application.appearance?.name, .darkAqua)
+
+        defaults.set(AppAppearance.light.rawValue, forKey: PreferenceKeys.appAppearance)
+        AppAppearanceController.applyStoredPreference(defaults: defaults, to: application)
+        XCTAssertEqual(application.appearance?.name, .aqua)
+
+        defaults.set("invalid", forKey: PreferenceKeys.appAppearance)
+        AppAppearanceController.applyStoredPreference(defaults: defaults, to: application)
+        XCTAssertNil(application.appearance, "Invalid preferences must fail safely to System")
     }
 
     func testVisualOnboardingCoversEveryCoreWorkflowAndClipboardBoundary() {
@@ -45,18 +65,18 @@ final class ClipboardAndPreferencesTests: XCTestCase {
             OnboardingStep.allCases.map(\.shortTitle),
             ["Welcome", "Quick Capture", "Clipboard", "Right-Click", "Organize", "Vault", "Back Up"]
         )
-        XCTAssertTrue(OnboardingStep.clipboard.message.contains("text, a link, or an image"))
+        XCTAssertTrue(OnboardingStep.clipboard.message.contains("text, Markdown, a link, or an image"))
         XCTAssertTrue(OnboardingStep.clipboard.tip.contains("never watches the clipboard"))
         if DistributionCapabilities.supportsAccessibilitySelectionCapture {
-            XCTAssertTrue(OnboardingStep.selection.message.contains("Control–Option–N"))
-            XCTAssertTrue(OnboardingStep.selection.message.contains("Control–Option–P"))
+            XCTAssertTrue(OnboardingStep.selection.message.contains("Control–Option–Shift–N"))
+            XCTAssertTrue(OnboardingStep.selection.message.contains("Control–Option–Shift–P"))
         } else {
             XCTAssertFalse(OnboardingStep.selection.message.contains("Control–Option"))
             XCTAssertTrue(OnboardingStep.selection.message.contains("Services menu"))
         }
         XCTAssertTrue(OnboardingStep.selection.message.contains("source app’s Services menu"))
         XCTAssertEqual(
-            OnboardingStep.vault.message.contains("Control–Option–P"),
+            OnboardingStep.vault.message.contains("Control–Option–Shift–P"),
             DistributionCapabilities.supportsAccessibilitySelectionCapture
         )
         XCTAssertTrue(OnboardingStep.vault.tip.contains("never anything copied afterward"))
@@ -142,4 +162,9 @@ private final class FakeClipboardClient: ClipboardClient {
     func readContent() -> ClipboardSnapshot? { snapshot }
     func currentSnapshot() -> ClipboardSnapshot? { snapshot }
     func clear() { clearCount += 1; snapshot = nil }
+}
+
+@MainActor
+private final class FakeApplicationAppearance: AppAppearanceApplying {
+    var appearance: NSAppearance?
 }

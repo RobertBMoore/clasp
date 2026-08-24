@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingIllustration: View {
     let step: OnboardingStep
+    @State private var shortcutPreferences = GlobalHotKeyPreferences.shared
 
     var body: some View {
         Group {
@@ -35,7 +36,7 @@ struct OnboardingIllustration: View {
 
     private var quickCapture: some View {
         HStack(spacing: 18) {
-            KeycapGroup(keys: ["⌥", "Space"], label: "From anywhere")
+            KeycapGroup(keys: quickCaptureKeycaps, label: "From anywhere")
             FlowArrow()
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -98,18 +99,22 @@ struct OnboardingIllustration: View {
                 Divider()
                 MenuMockRow(title: "Services", keys: "›")
                 MenuMockRow(
-                    title: "Create Note in Clasp",
-                    keys: DistributionCapabilities.supportsAccessibilitySelectionCapture ? "⌃⌥N" : ""
+                    title: inboxService.title,
+                    keys: "Default \(inboxService.defaultShortcut)"
                 )
                     .foregroundStyle(.blue)
                 MenuMockRow(
-                    title: "Create Private Note in Clasp",
-                    keys: DistributionCapabilities.supportsAccessibilitySelectionCapture ? "⌃⌥P" : ""
+                    title: vaultService.title,
+                    keys: "Default \(vaultService.defaultShortcut)"
                 )
                     .foregroundStyle(.green)
+                Text("Change Service shortcuts in System Settings")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(12)
-            .frame(width: 240)
+            .frame(width: 260)
             .background(.background, in: RoundedRectangle(cornerRadius: 10))
             .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
         }
@@ -148,7 +153,9 @@ struct OnboardingIllustration: View {
             }
             SecurityCard(symbol: AppIcon.Vault.destination, title: "Vault", detail: "Encrypted at rest", tint: .green)
             VStack(spacing: 7) {
-                Text(DistributionCapabilities.supportsAccessibilitySelectionCapture ? "⌃⌥P" : "Services")
+                Text(DistributionCapabilities.supportsAccessibilitySelectionCapture
+                    ? shortcutSymbols(.captureSelectionToVault)
+                    : vaultService.defaultShortcut)
                     .font(.callout.monospaced().bold())
                 Label("Touch ID", systemImage: "touchid")
                 Label("Auto-lock", systemImage: "timer")
@@ -168,6 +175,22 @@ struct OnboardingIllustration: View {
             FlowArrow()
             WalkthroughStage(number: 3, symbol: AppIcon.Vault.recoveryKey, title: "Recovery key", detail: "Store separately", tint: .orange)
         }
+    }
+
+    private var inboxService: MacOSCaptureServiceDescriptor {
+        MacOSCaptureServiceDescriptor.all[0]
+    }
+
+    private var vaultService: MacOSCaptureServiceDescriptor {
+        MacOSCaptureServiceDescriptor.all[1]
+    }
+
+    private var quickCaptureKeycaps: [String] {
+        shortcutPreferences.shortcut(for: .quickCapturePrimary)?.keycapLabels ?? ["Not set"]
+    }
+
+    private func shortcutSymbols(_ action: GlobalHotKeyAction) -> String {
+        shortcutPreferences.shortcut(for: action)?.symbolDisplayName ?? "Not set"
     }
 }
 

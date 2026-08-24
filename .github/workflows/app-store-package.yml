@@ -17,8 +17,11 @@ permissions:
   contents: read
 
 concurrency:
+  # Preserve approved release requests instead of replacing an older pending
+  # run when another request enters this protected serial group.
   group: clasp-app-store-package
   cancel-in-progress: false
+  queue: max
 
 jobs:
   protected-ref-preflight:
@@ -48,6 +51,8 @@ jobs:
       name: app-store-release
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: Require protected-environment configuration
         env:
@@ -56,11 +61,6 @@ jobs:
           APP_ID_PREFIX: ${{ vars.CLASP_APP_STORE_APP_ID_PREFIX }}
           APPLICATION_IDENTITY: ${{ vars.CLASP_APP_STORE_APPLICATION_IDENTITY }}
           INSTALLER_IDENTITY: ${{ vars.CLASP_APP_STORE_INSTALLER_IDENTITY }}
-          APPLICATION_P12: ${{ secrets.CLASP_APP_STORE_APPLICATION_P12_BASE64 }}
-          APPLICATION_P12_PASSWORD: ${{ secrets.CLASP_APP_STORE_APPLICATION_P12_PASSWORD }}
-          INSTALLER_P12: ${{ secrets.CLASP_APP_STORE_INSTALLER_P12_BASE64 }}
-          INSTALLER_P12_PASSWORD: ${{ secrets.CLASP_APP_STORE_INSTALLER_P12_PASSWORD }}
-          PROFILE_BASE64: ${{ secrets.CLASP_APP_STORE_PROVISIONING_PROFILE_BASE64 }}
           PRIVACY_POLICY_URL: ${{ vars.CLASP_PRIVACY_POLICY_URL }}
           LAST_ACCEPTED_BUILD_NUMBER: ${{ vars.CLASP_APP_STORE_LAST_ACCEPTED_BUILD_NUMBER }}
           REQUESTED_BUILD_NUMBER: ${{ inputs.build_number }}
@@ -71,13 +71,24 @@ jobs:
           [[ "$APP_ID_PREFIX" =~ ^[A-Z0-9]{10}$ ]]
           [[ "$APPLICATION_IDENTITY" == 'Apple Distribution: '* || "$APPLICATION_IDENTITY" == '3rd Party Mac Developer Application: '* ]]
           [[ "$INSTALLER_IDENTITY" == '3rd Party Mac Developer Installer: '* || "$INSTALLER_IDENTITY" == 'Mac Installer Distribution: '* ]]
-          [[ -n "$APPLICATION_P12" && -n "$APPLICATION_P12_PASSWORD" ]]
-          [[ -n "$INSTALLER_P12" && -n "$INSTALLER_P12_PASSWORD" ]]
-          [[ -n "$PROFILE_BASE64" ]]
           ./script/lib/validate_public_https_url.sh \
             "$PRIVACY_POLICY_URL" --require-reachable
           [[ "$LAST_ACCEPTED_BUILD_NUMBER" =~ ^(0|[1-9][0-9]{0,17})$ ]]
           ((10#$REQUESTED_BUILD_NUMBER > 10#$LAST_ACCEPTED_BUILD_NUMBER))
+
+      - name: Test the exact App Store compilation boundary
+        env:
+          CLASP_DIRECT_DISTRIBUTION: "0"
+        run: |
+          set -euo pipefail
+          source release/config.env
+          [[ ! -e Package.resolved && ! -L Package.resolved ]]
+          swift test \
+            --scratch-path .build-app-store-release-test \
+            --configuration release \
+            --arch "$CLASP_ARCH" \
+            -Xswiftc -DCLASP_APP_STORE
+          [[ ! -e Package.resolved && ! -L Package.resolved ]]
 
       - name: Import exact App Store identities into an ephemeral keychain
         env:
@@ -89,10 +100,12 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          [[ -n "$APPLICATION_P12" && -n "$APPLICATION_P12_PASSWORD" ]]
+          [[ -n "$INSTALLER_P12" && -n "$INSTALLER_P12_PASSWORD" ]]
+          [[ -n "$PROFILE_BASE64" ]]
           KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
           echo "::add-mask::$KEYCHAIN_PASSWORD"
           {
-            echo "CLASP_EPHEMERAL_KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD"
             echo "CLASP_EPHEMERAL_KEYCHAIN=$RUNNER_TEMP/clasp-app-store.keychain-db"
             echo "CLASP_APP_STORE_PROVISIONING_PROFILE=$RUNNER_TEMP/Clasp.provisionprofile"
           } >> "$GITHUB_ENV"
@@ -118,7 +131,7 @@ jobs:
           ./script/package_app_store.sh \
             --version '${{ inputs.version }}' \
             --build-number '${{ inputs.build_number }}'
-          test ! -e Package.resolved
+          [[ ! -e Package.resolved && ! -L Package.resolved ]]
 
       - name: Upload signed package for human review only
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

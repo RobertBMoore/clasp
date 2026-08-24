@@ -53,7 +53,7 @@ CLASP_DEVELOPER_ID_APPLICATION='Developer ID Application: Example Name (TEAMID12
 CLASP_UPDATE_FEED_URL='https://github.com/OWNER/REPOSITORY/releases/latest/download/appcast.xml' \
 CLASP_SPARKLE_PUBLIC_KEY='BASE64_PUBLIC_KEY' \
 ./script/verify_direct_release.sh \
-  release-output 1.0.0 7 \
+  release-output 1.0.0 8 \
   'https://github.com/OWNER/REPOSITORY/releases/download/v1.0.0/' \
   --require-notarization
 ```

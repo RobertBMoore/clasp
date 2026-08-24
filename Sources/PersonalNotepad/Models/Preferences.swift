@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 
 enum AppAppearance: String, CaseIterable, Identifiable, Sendable {
     case system
@@ -16,13 +15,6 @@ enum AppAppearance: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .system: nil
-        case .light: .light
-        case .dark: .dark
-        }
-    }
 }
 
 enum VaultAutoLockTimeout: String, CaseIterable, Identifiable, Sendable {

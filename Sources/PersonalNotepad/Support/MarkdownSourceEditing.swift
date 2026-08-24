@@ -27,6 +27,87 @@ struct MarkdownSourceToken: Equatable, Sendable {
     let range: NSRange
     let contentRange: NSRange
     let markerRanges: [NSRange]
+    /// Exact UTF-16 range of the single task-state source character (` `,
+    /// `x`, or `X`). Non-checklist tokens leave this unset.
+    let checklistStateRange: NSRange?
+
+    init(
+        kind: MarkdownSourceTokenKind,
+        range: NSRange,
+        contentRange: NSRange,
+        markerRanges: [NSRange],
+        checklistStateRange: NSRange? = nil
+    ) {
+        self.kind = kind
+        self.range = range
+        self.contentRange = contentRange
+        self.markerRanges = markerRanges
+        self.checklistStateRange = checklistStateRange
+    }
+}
+
+/// Source-exact task metadata used by both the transformer and Page-mode
+/// controls. Every range is UTF-16 and points into the same source revision.
+struct MarkdownChecklistItem: Equatable, Sendable {
+    let lineRange: NSRange
+    let markerRange: NSRange
+    let stateRange: NSRange
+    let contentRange: NSRange
+    let isChecked: Bool
+}
+
+enum MarkdownPageBlockDecorationKind: Equatable, Sendable {
+    case fencedCode
+    case thematicBreak
+}
+
+/// Presentation-only block geometry consumed by the AppKit text view. The
+/// source range remains canonical Markdown; the view draws the page treatment
+/// behind those glyphs without inserting attachments or replacement text.
+struct MarkdownPageBlockDecoration: Equatable, Sendable {
+    let kind: MarkdownPageBlockDecorationKind
+    let range: NSRange
+}
+
+/// Presentation-only metadata for a native checkbox layered over unchanged
+/// Markdown glyphs. It never enters the text storage or persisted source.
+struct MarkdownPageChecklistDecoration: Equatable, Sendable {
+    let lineRange: NSRange
+    let markerRange: NSRange
+    let stateRange: NSRange
+    let contentRange: NSRange
+    let isChecked: Bool
+
+    init(
+        lineRange: NSRange,
+        markerRange: NSRange,
+        stateRange: NSRange,
+        contentRange: NSRange,
+        isChecked: Bool
+    ) {
+        self.lineRange = lineRange
+        self.markerRange = markerRange
+        self.stateRange = stateRange
+        self.contentRange = contentRange
+        self.isChecked = isChecked
+    }
+
+    init(item: MarkdownChecklistItem) {
+        self.init(
+            lineRange: item.lineRange,
+            markerRange: item.markerRange,
+            stateRange: item.stateRange,
+            contentRange: item.contentRange,
+            isChecked: item.isChecked
+        )
+    }
+}
+
+struct MarkdownPagePresentationResult: Equatable, Sendable {
+    let blockDecorations: [MarkdownPageBlockDecoration]
+    let checklistDecorations: [MarkdownPageChecklistDecoration]
+
+    static let empty = MarkdownPagePresentationResult(blockDecorations: [], checklistDecorations: [])
 }
 
 enum MarkdownSourceAnalyzer {
@@ -48,6 +129,48 @@ enum MarkdownSourceAnalyzer {
     private static let strikeExpression = expression(#"~~([^\n]+?)~~"#)
     private static let codeExpression = expression(#"(`+)([^\n]*?)\1"#)
     private static let emphasisExpression = expression(#"(?<!\*)\*([^*\n]+?)\*(?!\*)|(?<!_)_([^_\n]+?)_(?!_)"#)
+
+    /// A lightweight, fence-aware pass used to keep Page-mode task controls
+    /// synchronized immediately while full semantic styling is debounced.
+    static func checklistItems(in source: String) -> [MarkdownChecklistItem] {
+        let string = source as NSString
+        let sourceLines = lines(in: string)
+        var items: [MarkdownChecklistItem] = []
+        var openFence: (character: Character, length: Int)?
+
+        for line in sourceLines {
+            if let match = firstMatch(fenceExpression, in: line.text),
+               let markerRange = capture(match, 1, offset: line.range.location) {
+                let marker = string.substring(with: markerRange)
+                if let fence = openFence {
+                    let suffix = capture(match, 2, in: line.text as NSString) ?? ""
+                    if marker.first == fence.character,
+                       marker.utf16.count >= fence.length,
+                       suffix.allSatisfy({ $0 == " " || $0 == "\t" }) {
+                        openFence = nil
+                    }
+                } else if let character = marker.first {
+                    openFence = (character, marker.utf16.count)
+                }
+                continue
+            }
+
+            guard openFence == nil,
+                  let match = firstMatch(taskExpression, in: line.text),
+                  let markerRange = capture(match, 2, offset: line.range.location),
+                  let stateRange = capture(match, 3, offset: line.range.location),
+                  let state = capture(match, 3, in: line.text as NSString),
+                  let contentRange = capture(match, 4, offset: line.range.location) else { continue }
+            items.append(.init(
+                lineRange: line.range,
+                markerRange: markerRange,
+                stateRange: stateRange,
+                contentRange: contentRange,
+                isChecked: state.lowercased() == "x"
+            ))
+        }
+        return items
+    }
 
     static func tokens(in source: String) -> [MarkdownSourceToken] {
         let string = source as NSString
@@ -71,7 +194,9 @@ enum MarkdownSourceAnalyzer {
                 for candidateIndex in (index + 1)..<lines.count {
                     let candidate = lines[candidateIndex]
                     guard let match = firstMatch(fenceExpression, in: candidate.text),
-                          let markerRange = capture(match, 1, offset: candidate.range.location) else { continue }
+                          let markerRange = capture(match, 1, offset: candidate.range.location),
+                          let suffix = capture(match, 2, in: candidate.text as NSString),
+                          suffix.allSatisfy({ $0 == " " || $0 == "\t" }) else { continue }
                     let marker = string.substring(with: markerRange)
                     if marker.first == fenceCharacter && marker.utf16.count >= openingText.utf16.count {
                         closingIndex = candidateIndex
@@ -121,13 +246,15 @@ enum MarkdownSourceAnalyzer {
 
             if let match = firstMatch(taskExpression, in: line.text),
                let marker = capture(match, 2, offset: line.range.location),
+               let stateRange = capture(match, 3, offset: line.range.location),
                let state = capture(match, 3, in: line.text as NSString),
                let content = capture(match, 4, offset: line.range.location) {
                 tokens.append(.init(
                     kind: .list(.checklist(checked: state.lowercased() == "x")),
                     range: line.range,
                     contentRange: content,
-                    markerRanges: [marker]
+                    markerRanges: [marker],
+                    checklistStateRange: stateRange
                 ))
             } else if let match = firstMatch(numberedExpression, in: line.text),
                       let marker = capture(match, 2, offset: line.range.location),
@@ -333,6 +460,13 @@ enum MarkdownSourceIdentity {
     static func exactlyEqual(_ lhs: String, _ rhs: String) -> Bool {
         lhs.utf8.elementsEqual(rhs.utf8)
     }
+
+    /// NSTextStorage can expose a Cocoa-backed String whose bytes still share
+    /// mutable storage. Materialize a byte-exact Swift value before retaining
+    /// it across a TextKit mutation or an asynchronous boundary.
+    static func detachedCopy(_ source: String) -> String {
+        String(decoding: Array(source.utf8), as: UTF8.self)
+    }
 }
 
 enum MarkdownSourceCommandTransformer {
@@ -341,9 +475,35 @@ enum MarkdownSourceCommandTransformer {
         let replacement: String
     }
 
+    private struct BlockLineContext {
+        let lineRange: NSRange
+        let contentRange: NSRange
+        let originalPrefix: String
+        let indent: String
+    }
+
+    private struct InlineIsolation {
+        /// Complete source bytes which must travel together to keep Markdown valid.
+        let sourceRange: NSRange
+        /// Human-visible content which should remain selected after the edit.
+        let visibleRange: NSRange
+    }
+
+    private enum InlineIsolationResolution {
+        case safe(InlineIsolation)
+        case unsafe
+    }
+
+    private struct OpenFence {
+        let character: unichar
+        let markerLength: Int
+        let start: Int
+    }
+
     private static let headingPrefixExpression = try! NSRegularExpression(pattern: #"^([\t ]{0,3})#{1,6}[\t ]+"#)
     private static let listPrefixExpression = try! NSRegularExpression(pattern: #"^([\t ]*)(?:(?:[-+*])[\t ]+(?:\[[ xX]\][\t ]+)?|\d+[.)][\t ]+)"#)
     private static let quotePrefixExpression = try! NSRegularExpression(pattern: #"^([\t ]{0,3})>[\t ]?"#)
+    private static let styleFenceExpression = try! NSRegularExpression(pattern: #"^ {0,3}(`{3,}|~{3,})(.*)$"#)
 
     static func applying(
         _ command: RichEditorCommand,
@@ -390,6 +550,31 @@ enum MarkdownSourceCommandTransformer {
         case .horizontalRule:
             return horizontalRule(source, selection: selection)
         }
+    }
+
+    /// Toggles one analyzer-validated task state without rewriting any other
+    /// source byte. The one-character replacement means every existing UTF-16
+    /// selection remains stable, including selections before or after the task.
+    static func togglingChecklist(
+        in source: String,
+        atStateRange requestedStateRange: NSRange,
+        selection requestedSelection: NSRange
+    ) -> MarkdownSourceEditResult {
+        let sourceLength = (source as NSString).length
+        let selection = clamped(requestedSelection, to: sourceLength)
+        guard requestedStateRange.length == 1,
+              NSMaxRange(requestedStateRange) <= sourceLength,
+              let item = MarkdownSourceAnalyzer.checklistItems(in: source).first(where: {
+                  NSEqualRanges($0.stateRange, requestedStateRange)
+              }) else {
+            return .init(source: source, selection: selection)
+        }
+
+        return replacing(
+            source,
+            edits: [.init(range: item.stateRange, replacement: item.isChecked ? " " : "x")],
+            selection: selection
+        )
     }
 
     private static func wrapped(
@@ -474,8 +659,52 @@ enum MarkdownSourceCommandTransformer {
 
     private static func heading(_ source: String, selection: NSRange, level: Int?) -> MarkdownSourceEditResult {
         let string = source as NSString
+        if selection.length > 0,
+           string.substring(with: selection).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .init(source: source, selection: selection)
+        }
+        guard !intersectsFencedCode(in: source, selection: selection) else {
+            return .init(source: source, selection: selection)
+        }
+
         let ranges = selectedLineRanges(in: string, selection: selection)
-        let edits = ranges.compactMap { lineRange -> TextEdit? in
+        let newline = preferredNewline(in: source)
+        var edits: [TextEdit] = []
+        var singleLineVisibleSelection = selection
+        var finalVisibleEndpoint = selection.location
+        for lineRange in ranges {
+            let context = blockLineContext(in: string, lineRange: lineRange)
+            let selectedContent = NSIntersectionRange(selection, context.contentRange)
+            if selectedContent.length > 0 {
+                finalVisibleEndpoint = NSMaxRange(selectedContent)
+            }
+            let isPartialContentSelection = selection.length > 0
+                && selectedContent.length > 0
+                && (selectedContent.location > context.contentRange.location
+                    || NSMaxRange(selectedContent) < NSMaxRange(context.contentRange))
+
+            if isPartialContentSelection {
+                let isolation: InlineIsolation
+                switch inlineIsolation(in: string, context: context, selectedContent: selectedContent) {
+                case .safe(let resolved):
+                    isolation = resolved
+                case .unsafe:
+                    return .init(source: source, selection: selection)
+                }
+                if ranges.count == 1 {
+                    singleLineVisibleSelection = isolation.visibleRange
+                }
+                finalVisibleEndpoint = NSMaxRange(isolation.visibleRange)
+                edits.append(contentsOf: partialBlockStyleEdits(
+                    in: string,
+                    context: context,
+                    isolatedSource: isolation.sourceRange,
+                    level: level,
+                    newline: newline
+                ))
+                continue
+            }
+
             let line = string.substring(with: lineRange) as NSString
             let match = headingPrefixExpression.firstMatch(in: line as String, range: NSRange(location: 0, length: line.length))
             let indentLength: Int
@@ -484,10 +713,84 @@ enum MarkdownSourceCommandTransformer {
             let indent = line.substring(with: NSRange(location: 0, length: indentLength))
             let existingLength = match?.range.length ?? indentLength
             let replacement = indent + (level.map { String(repeating: "#", count: $0) + " " } ?? "")
-            guard existingLength != (replacement as NSString).length || line.substring(with: NSRange(location: 0, length: existingLength)) != replacement else { return nil }
-            return .init(range: NSRange(location: lineRange.location, length: existingLength), replacement: replacement)
+            guard existingLength != (replacement as NSString).length
+                    || line.substring(with: NSRange(location: 0, length: existingLength)) != replacement else {
+                continue
+            }
+            edits.append(.init(
+                range: NSRange(location: lineRange.location, length: existingLength),
+                replacement: replacement
+            ))
         }
-        return replacing(source, edits: edits, mappedSelection: selection)
+        let mappedSelection = mapSelectedContent(singleLineVisibleSelection, through: edits)
+        if ranges.count > 1, selection.length > 0 {
+            let endpoint = mapSelectedContent(
+                NSRange(location: finalVisibleEndpoint, length: 0),
+                through: edits
+            ).location
+            return replacing(source, edits: edits, selection: NSRange(location: endpoint, length: 0))
+        }
+        return replacing(source, edits: edits, selection: mappedSelection)
+    }
+
+    private static func partialBlockStyleEdits(
+        in source: NSString,
+        context: BlockLineContext,
+        isolatedSource: NSRange,
+        level: Int?,
+        newline: String
+    ) -> [TextEdit] {
+        var boundaryStart = isolatedSource.location
+        while boundaryStart > context.contentRange.location,
+              isHorizontalWhitespace(source.character(at: boundaryStart - 1)) {
+            boundaryStart -= 1
+        }
+
+        var boundaryEnd = NSMaxRange(isolatedSource)
+        while boundaryEnd < NSMaxRange(context.contentRange),
+              isHorizontalWhitespace(source.character(at: boundaryEnd)) {
+            boundaryEnd += 1
+        }
+
+        let hasContentBefore = boundaryStart > context.contentRange.location
+        let hasContentAfter = boundaryEnd < NSMaxRange(context.contentRange)
+        let desiredPrefix = context.indent
+            + (level.map { String(repeating: "#", count: $0) + " " } ?? "")
+        var edits: [TextEdit] = []
+
+        if hasContentBefore {
+            edits.append(.init(
+                range: NSRange(location: boundaryStart, length: isolatedSource.location - boundaryStart),
+                replacement: newline + desiredPrefix
+            ))
+        } else {
+            edits.append(.init(
+                range: NSRange(
+                    location: context.lineRange.location,
+                    length: isolatedSource.location - context.lineRange.location
+                ),
+                replacement: desiredPrefix
+            ))
+        }
+
+        if hasContentAfter {
+            edits.append(.init(
+                range: NSRange(
+                    location: NSMaxRange(isolatedSource),
+                    length: boundaryEnd - NSMaxRange(isolatedSource)
+                ),
+                replacement: newline + context.originalPrefix
+            ))
+        } else if boundaryEnd > NSMaxRange(isolatedSource) {
+            edits.append(.init(
+                range: NSRange(
+                    location: NSMaxRange(isolatedSource),
+                    length: boundaryEnd - NSMaxRange(isolatedSource)
+                ),
+                replacement: ""
+            ))
+        }
+        return edits
     }
 
     private static func list(_ source: String, selection: NSRange, kind: MarkdownListKind) -> MarkdownSourceEditResult {
@@ -657,9 +960,238 @@ enum MarkdownSourceCommandTransformer {
         return ranges
     }
 
+    private static func blockLineContext(in source: NSString, lineRange: NSRange) -> BlockLineContext {
+        let line = source.substring(with: lineRange) as NSString
+        let indentLength = leadingIndentLength(in: line, maximum: 3)
+        let prefixLength = compoundBlockPrefixLength(in: line) ?? indentLength
+        let prefixRange = NSRange(location: lineRange.location, length: prefixLength)
+        let contentRange = NSRange(
+            location: NSMaxRange(prefixRange),
+            length: max(0, NSMaxRange(lineRange) - NSMaxRange(prefixRange))
+        )
+        return .init(
+            lineRange: lineRange,
+            contentRange: contentRange,
+            originalPrefix: line.substring(with: NSRange(location: 0, length: prefixLength)),
+            indent: line.substring(with: NSRange(location: 0, length: indentLength))
+        )
+    }
+
+    private static func intersectsFencedCode(in source: String, selection: NSRange) -> Bool {
+        let string = source as NSString
+        guard string.length > 0 else { return false }
+
+        var openFence: OpenFence?
+        var location = 0
+        while location < string.length {
+            let fullRange = string.lineRange(for: NSRange(location: location, length: 0))
+            var contentEnd = NSMaxRange(fullRange)
+            while contentEnd > fullRange.location {
+                let character = string.character(at: contentEnd - 1)
+                if character == 0x0A || character == 0x0D { contentEnd -= 1 }
+                else { break }
+            }
+            let lineRange = NSRange(location: fullRange.location, length: contentEnd - fullRange.location)
+            let line = string.substring(with: lineRange) as NSString
+
+            if let candidate = fenceCandidate(in: line) {
+                if let opening = openFence {
+                    if candidate.character == opening.character,
+                       candidate.markerLength >= opening.markerLength,
+                       candidate.hasWhitespaceOnlySuffix {
+                        let protectedRange = NSRange(
+                            location: opening.start,
+                            length: NSMaxRange(fullRange) - opening.start
+                        )
+                        if selectionIntersects(selection, protectedRange: protectedRange, includesUpperBound: false) {
+                            return true
+                        }
+                        openFence = nil
+                    }
+                } else {
+                    openFence = .init(
+                        character: candidate.character,
+                        markerLength: candidate.markerLength,
+                        start: lineRange.location
+                    )
+                }
+            }
+
+            if openFence == nil, NSMaxRange(fullRange) > NSMaxRange(selection) {
+                return false
+            }
+            location = NSMaxRange(fullRange)
+        }
+
+        guard let opening = openFence else { return false }
+        let protectedRange = NSRange(location: opening.start, length: string.length - opening.start)
+        return selectionIntersects(selection, protectedRange: protectedRange, includesUpperBound: true)
+    }
+
+    private static func inlineIsolation(
+        in source: NSString,
+        context: BlockLineContext,
+        selectedContent: NSRange
+    ) -> InlineIsolationResolution {
+        let line = source.substring(with: context.lineRange)
+        let inlineTokens = MarkdownSourceAnalyzer.tokens(in: line).compactMap { token -> MarkdownSourceToken? in
+            guard isInline(token.kind) else { return nil }
+            return .init(
+                kind: token.kind,
+                range: offset(token.range, by: context.lineRange.location),
+                contentRange: offset(token.contentRange, by: context.lineRange.location),
+                markerRanges: token.markerRanges.map { offset($0, by: context.lineRange.location) }
+            )
+        }.filter { NSIntersectionRange($0.range, selectedContent).length > 0 }
+
+        guard !inlineTokens.isEmpty else {
+            return .safe(.init(sourceRange: selectedContent, visibleRange: selectedContent))
+        }
+
+        // Nested or crossing syntax has more than one plausible ownership
+        // boundary. A source-preserving block split cannot safely choose one.
+        for index in inlineTokens.indices {
+            for otherIndex in inlineTokens.indices where otherIndex > index {
+                if NSIntersectionRange(inlineTokens[index].range, inlineTokens[otherIndex].range).length > 0 {
+                    return .unsafe
+                }
+            }
+        }
+
+        var enclosingToken: MarkdownSourceToken?
+        for token in inlineTokens {
+            if NSEqualRanges(selectedContent, token.range) {
+                guard enclosingToken == nil else { return .unsafe }
+                enclosingToken = token
+                continue
+            }
+            if contains(selectedContent, token.range) {
+                continue
+            }
+            if contains(token.range, selectedContent),
+               NSEqualRanges(selectedContent, token.contentRange) {
+                guard enclosingToken == nil else { return .unsafe }
+                enclosingToken = token
+                continue
+            }
+            return .unsafe
+        }
+
+        if let enclosingToken {
+            return .safe(.init(
+                sourceRange: enclosingToken.range,
+                visibleRange: enclosingToken.contentRange
+            ))
+        }
+        return .safe(.init(sourceRange: selectedContent, visibleRange: selectedContent))
+    }
+
+    private static func compoundBlockPrefixLength(in line: NSString) -> Int? {
+        var location = 0
+        var foundPrefix = false
+        while location < line.length {
+            let suffix = line.substring(from: location) as NSString
+            let range = NSRange(location: 0, length: suffix.length)
+            let candidates: [(NSRegularExpression, Bool)] = [
+                (quotePrefixExpression, false),
+                (listPrefixExpression, false),
+                (headingPrefixExpression, true),
+            ]
+            guard let candidate = candidates.compactMap({ expression, terminates -> (NSTextCheckingResult, Bool)? in
+                guard let match = expression.firstMatch(in: suffix as String, range: range),
+                      match.range.location == 0,
+                      match.range.length > 0 else { return nil }
+                return (match, terminates)
+            }).first else { break }
+            foundPrefix = true
+            location += candidate.0.range.length
+            if candidate.1 { break }
+        }
+        return foundPrefix ? location : nil
+    }
+
+    private static func fenceCandidate(in line: NSString) -> (
+        character: unichar,
+        markerLength: Int,
+        hasWhitespaceOnlySuffix: Bool
+    )? {
+        guard let match = styleFenceExpression.firstMatch(
+            in: line as String,
+            range: NSRange(location: 0, length: line.length)
+        ) else { return nil }
+        let markerRange = match.range(at: 1)
+        let suffixRange = match.range(at: 2)
+        guard markerRange.location != NSNotFound,
+              markerRange.length > 0,
+              suffixRange.location != NSNotFound else { return nil }
+        let suffix = line.substring(with: suffixRange) as NSString
+        var index = 0
+        while index < suffix.length {
+            guard isHorizontalWhitespace(suffix.character(at: index)) else {
+                return (line.character(at: markerRange.location), markerRange.length, false)
+            }
+            index += 1
+        }
+        return (line.character(at: markerRange.location), markerRange.length, true)
+    }
+
+    private static func selectionIntersects(
+        _ selection: NSRange,
+        protectedRange: NSRange,
+        includesUpperBound: Bool
+    ) -> Bool {
+        if selection.length > 0 {
+            return NSIntersectionRange(selection, protectedRange).length > 0
+        }
+        let upperBound = NSMaxRange(protectedRange)
+        return selection.location >= protectedRange.location
+            && (selection.location < upperBound || (includesUpperBound && selection.location == upperBound))
+    }
+
+    private static func isInline(_ kind: MarkdownSourceTokenKind) -> Bool {
+        switch kind {
+        case .strong, .emphasis, .strikethrough, .inlineCode, .link:
+            true
+        default:
+            false
+        }
+    }
+
+    private static func contains(_ outer: NSRange, _ inner: NSRange) -> Bool {
+        outer.location <= inner.location && NSMaxRange(inner) <= NSMaxRange(outer)
+    }
+
+    private static func offset(_ range: NSRange, by amount: Int) -> NSRange {
+        NSRange(location: range.location + amount, length: range.length)
+    }
+
+    private static func isHorizontalWhitespace(_ character: unichar) -> Bool {
+        character == 0x20 || character == 0x09
+    }
+
     private static func replacing(_ source: String, edits: [TextEdit], mappedSelection selection: NSRange) -> MarkdownSourceEditResult {
         let mapped = map(selection: selection, through: edits)
         return replacing(source, edits: edits, selection: mapped)
+    }
+
+    /// Keeps the user's selected source content selected when structural edits
+    /// are inserted immediately before or after it. Edits at the leading edge
+    /// belong before the content; edits at the trailing edge do not become part
+    /// of the selection.
+    private static func mapSelectedContent(_ selection: NSRange, through edits: [TextEdit]) -> NSRange {
+        let originalEnd = NSMaxRange(selection)
+        var mappedStart = selection.location
+        var mappedEnd = originalEnd
+        for edit in edits {
+            let delta = (edit.replacement as NSString).length - edit.range.length
+            if NSMaxRange(edit.range) <= selection.location {
+                mappedStart += delta
+            }
+            if edit.range.location < originalEnd {
+                mappedEnd += delta
+            }
+        }
+        return NSRange(location: max(0, mappedStart), length: max(0, mappedEnd - mappedStart))
     }
 
     private static func replacing(_ source: String, edits: [TextEdit], selection: NSRange) -> MarkdownSourceEditResult {
@@ -847,13 +1379,55 @@ enum MarkdownSourcePresentation {
     /// selected readable base typography and remain fully editable/source exact.
     static let maximumParsedUTF16Length = 100_000
 
+    /// Refreshes only task-line presentation and geometry. This bounded pass
+    /// avoids stale or blinking Page controls while the full semantic styling
+    /// of a long document waits for the typing debounce.
+    static func refreshChecklistPresentation(
+        in storage: NSTextStorage,
+        style: MarkdownEditorPresentationStyle
+    ) -> [MarkdownPageChecklistDecoration] {
+        guard storage.length <= maximumParsedUTF16Length else { return [] }
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineHeightMultiple = max(1, style.lineHeightMultiplier)
+        paragraph.paragraphSpacing = max(0, style.paragraphSpacing)
+        paragraph.lineBreakMode = .byWordWrapping
+        let items = MarkdownSourceAnalyzer.checklistItems(in: storage.string)
+        storage.beginEditing()
+        for item in items {
+            applyChecklistPresentation(
+                to: storage,
+                lineRange: item.lineRange,
+                markerRange: item.markerRange,
+                paragraph: paragraph,
+                style: style
+            )
+        }
+        storage.endEditing()
+        return items.map(MarkdownPageChecklistDecoration.init(item:))
+    }
+
+    @discardableResult
     static func apply(
         to storage: NSTextStorage,
         style: MarkdownEditorPresentationStyle,
         showsSource: Bool,
-        activeParagraphRange: NSRange?,
         includesSemantics: Bool = true
-    ) {
+    ) -> [MarkdownPageBlockDecoration] {
+        applyDocument(
+            to: storage,
+            style: style,
+            showsSource: showsSource,
+            includesSemantics: includesSemantics
+        ).blockDecorations
+    }
+
+    @discardableResult
+    static func applyDocument(
+        to storage: NSTextStorage,
+        style: MarkdownEditorPresentationStyle,
+        showsSource: Bool,
+        includesSemantics: Bool = true
+    ) -> MarkdownPagePresentationResult {
         let source = storage.string
         let fullRange = NSRange(location: 0, length: storage.length)
         let font = showsSource ? style.sourceFont : style.bodyFont
@@ -870,12 +1444,30 @@ enum MarkdownSourcePresentation {
         ], range: fullRange)
 
         guard !showsSource,
-              includesSemantics,
               storage.length <= maximumParsedUTF16Length else {
             storage.endEditing()
-            return
+            return .empty
         }
 
+        // The lightweight task pass keeps native checkboxes synchronized even
+        // while a long document's complete semantic pass is debounced.
+        if !includesSemantics {
+            let checklistDecorations = MarkdownSourceAnalyzer.checklistItems(in: source).map { item in
+                applyChecklistPresentation(
+                    to: storage,
+                    lineRange: item.lineRange,
+                    markerRange: item.markerRange,
+                    paragraph: paragraph,
+                    style: style
+                )
+                return MarkdownPageChecklistDecoration(item: item)
+            }
+            storage.endEditing()
+            return .init(blockDecorations: [], checklistDecorations: checklistDecorations)
+        }
+
+        var blockDecorations: [MarkdownPageBlockDecoration] = []
+        var checklistDecorations: [MarkdownPageChecklistDecoration] = []
         for token in MarkdownSourceAnalyzer.tokens(in: source) {
             guard NSMaxRange(token.range) <= storage.length else { continue }
             switch token.kind {
@@ -900,11 +1492,32 @@ enum MarkdownSourcePresentation {
                         .underlineStyle: NSUnderlineStyle.single.rawValue,
                     ], range: token.contentRange)
                 }
-            case .list:
-                let listParagraph = paragraph.mutableCopy() as! NSMutableParagraphStyle
-                listParagraph.firstLineHeadIndent = 0
-                listParagraph.headIndent = style.bodyPointSize * 1.35
-                storage.addAttribute(.paragraphStyle, value: listParagraph, range: token.range)
+            case .list(let kind):
+                let markerRange = token.markerRanges.first
+                if case .checklist(let isChecked) = kind,
+                   let markerRange,
+                   let stateRange = token.checklistStateRange {
+                    applyChecklistPresentation(
+                        to: storage,
+                        lineRange: token.range,
+                        markerRange: markerRange,
+                        paragraph: paragraph,
+                        style: style
+                    )
+                    checklistDecorations.append(.init(
+                        lineRange: token.range,
+                        markerRange: markerRange,
+                        stateRange: stateRange,
+                        contentRange: token.contentRange,
+                        isChecked: isChecked
+                    ))
+                } else {
+                    storage.addAttribute(
+                        .paragraphStyle,
+                        value: listParagraph(from: paragraph, style: style),
+                        range: token.range
+                    )
+                }
             case .blockquote:
                 let quoteParagraph = paragraph.mutableCopy() as! NSMutableParagraphStyle
                 quoteParagraph.firstLineHeadIndent = style.bodyPointSize * 0.7
@@ -914,12 +1527,14 @@ enum MarkdownSourcePresentation {
                     .foregroundColor: NSColor.secondaryLabelColor,
                 ], range: token.contentRange)
             case .fencedCode:
-                storage.addAttributes([
-                    .font: NSFont.monospacedSystemFont(ofSize: max(11, style.bodyPointSize - 1), weight: .regular),
-                    .backgroundColor: NSColor.quaternaryLabelColor,
-                ], range: token.contentRange)
+                storage.addAttribute(
+                    .font,
+                    value: NSFont.monospacedSystemFont(ofSize: max(11, style.bodyPointSize - 1), weight: .regular),
+                    range: token.contentRange
+                )
+                blockDecorations.append(.init(kind: .fencedCode, range: token.range))
             case .thematicBreak:
-                storage.addAttribute(.foregroundColor, value: NSColor.separatorColor, range: token.range)
+                blockDecorations.append(.init(kind: .thematicBreak, range: token.range))
             }
 
             for markerRange in token.markerRanges where NSMaxRange(markerRange) <= storage.length {
@@ -927,29 +1542,39 @@ enum MarkdownSourcePresentation {
                     storage.addAttributes(attributes, range: markerRange)
                     continue
                 }
-                let isActive = activeParagraphRange.map { NSIntersectionRange($0, markerRange).length > 0 } ?? false
                 storage.addAttributes([
-                    // Inactive syntax is visually collapsed but remains real,
-                    // selectable source. Moving the caret into its paragraph
-                    // restores a normal editing size immediately.
-                    .font: NSFont.monospacedSystemFont(ofSize: isActive ? max(11, style.bodyPointSize - 2) : max(2, style.bodyPointSize * 0.13), weight: .regular),
-                    .foregroundColor: isActive
-                        ? NSColor.tertiaryLabelColor
-                        : NSColor.quaternaryLabelColor.withAlphaComponent(0.24),
+                    // Recognized inline Markdown remains hidden in Page mode.
+                    // The same compact metrics are used whether or not the
+                    // editor has focus, so clicking cannot rewrap or move the
+                    // page while punctuation occupies negligible space.
+                    .font: NSFont.monospacedSystemFont(ofSize: max(2, style.bodyPointSize * 0.13), weight: .regular),
+                    .foregroundColor: NSColor.clear,
                 ], range: markerRange)
             }
         }
         storage.endEditing()
+        return .init(
+            blockDecorations: blockDecorations,
+            checklistDecorations: checklistDecorations
+        )
     }
 
-    /// Inline punctuation can recede in Page mode, but block markers carry
-    /// meaning of their own. Keep checkboxes, list bullets, quote cues, rules,
-    /// and code fences visible without replacing a single source character.
+    /// List and quote markers carry meaning of their own, so Page mode keeps
+    /// them legible. Rules and code fences recede because the text view draws
+    /// their document treatment without replacing a source character.
     private static func semanticMarkerAttributes(
         for kind: MarkdownSourceTokenKind,
         style: MarkdownEditorPresentationStyle
     ) -> [NSAttributedString.Key: Any]? {
         switch kind {
+        case .list(.checklist):
+            return [
+                // Keep the exact marker's metrics in layout so checked-state
+                // changes cannot rewrap the document. A native checkbox is
+                // layered over these transparent glyphs by MarkdownPageTextView.
+                .font: checklistMarkerFont(style: style),
+                .foregroundColor: NSColor.clear,
+            ]
         case .list:
             return [
                 .font: style.bodyFont,
@@ -962,18 +1587,53 @@ enum MarkdownSourcePresentation {
             ]
         case .thematicBreak:
             return [
-                .font: NSFont.monospacedSystemFont(ofSize: max(11, style.bodyPointSize - 2), weight: .regular),
-                .foregroundColor: NSColor.separatorColor,
+                .font: NSFont.monospacedSystemFont(ofSize: max(2, style.bodyPointSize * 0.13), weight: .regular),
+                .foregroundColor: NSColor.clear,
             ]
         case .fencedCode:
             return [
-                .font: NSFont.monospacedSystemFont(ofSize: max(11, style.bodyPointSize - 2), weight: .regular),
-                .foregroundColor: NSColor.secondaryLabelColor,
-                .backgroundColor: NSColor.quaternaryLabelColor,
+                .font: NSFont.monospacedSystemFont(ofSize: max(2, style.bodyPointSize * 0.13), weight: .regular),
+                .foregroundColor: NSColor.clear,
             ]
         default:
             return nil
         }
+    }
+
+    private static func listParagraph(
+        from paragraph: NSParagraphStyle,
+        style: MarkdownEditorPresentationStyle
+    ) -> NSParagraphStyle {
+        let listParagraph = paragraph.mutableCopy() as! NSMutableParagraphStyle
+        listParagraph.firstLineHeadIndent = 0
+        listParagraph.headIndent = style.bodyPointSize * 1.35
+        return listParagraph
+    }
+
+    private static func applyChecklistPresentation(
+        to storage: NSTextStorage,
+        lineRange: NSRange,
+        markerRange: NSRange,
+        paragraph: NSParagraphStyle,
+        style: MarkdownEditorPresentationStyle
+    ) {
+        guard NSMaxRange(lineRange) <= storage.length,
+              NSMaxRange(markerRange) <= storage.length else { return }
+        storage.addAttribute(
+            .paragraphStyle,
+            value: listParagraph(from: paragraph, style: style),
+            range: lineRange
+        )
+        storage.addAttributes([
+            // A fixed-width marker makes ` `, `x`, and `X` exactly
+            // interchangeable in TextKit geometry for every document font.
+            .font: checklistMarkerFont(style: style),
+            .foregroundColor: NSColor.clear,
+        ], range: markerRange)
+    }
+
+    private static func checklistMarkerFont(style: MarkdownEditorPresentationStyle) -> NSFont {
+        .monospacedSystemFont(ofSize: style.bodyPointSize, weight: .regular)
     }
 
     private static func applyFontTrait(_ trait: NSFontTraitMask, to storage: NSTextStorage, range: NSRange) {

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct NoteEditorView: View {
@@ -16,6 +17,9 @@ struct NoteEditorView: View {
     @SceneStorage("clasp.editorMode") private var editorModeRawValue = EditorMode.page.rawValue
     @State private var editorCommand: RichEditorCommandToken?
     @State private var showsDocumentStyle = false
+    @State private var showsParagraphStylePicker = false
+    @State private var paragraphStyleTriggerFrame = CGRect.null
+    @FocusState private var paragraphStylePickerFocus: RichStylePickerFocus?
     @AppStorage(PreferenceKeys.documentStylePreset) private var documentStylePreset = DocumentStylePreset.balanced.rawValue
     @AppStorage(PreferenceKeys.documentFontFamily) private var documentFontFamily = DocumentStyle.balanced.fontFamily.rawValue
     @AppStorage(PreferenceKeys.documentBodyPointSize) private var documentBodyPointSize = DocumentStyle.balanced.bodyPointSize
@@ -32,7 +36,17 @@ struct NoteEditorView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        GeometryReader { paneGeometry in
+            let paneBounds = CGRect(origin: .zero, size: paneGeometry.size)
+            let pickerPlacement = RichStylePickerLayout.placement(
+                in: paneBounds,
+                anchoredTo: paragraphStyleTriggerFrame
+            )
+            let transitionAnchor: UnitPoint = pickerPlacement.verticalAttachment == .above
+                ? .bottomLeading
+                : .topLeading
+
+            VStack(alignment: .leading, spacing: 0) {
             editorHeader
             .padding(.horizontal, 20)
             .padding(.top, 18)
@@ -57,7 +71,10 @@ struct NoteEditorView: View {
             }
 
             if editorMode == .page {
-                RichFormattingBar { command in
+                RichFormattingBar(
+                    isStylePickerPresented: $showsParagraphStylePicker,
+                    stylePickerFocus: $paragraphStylePickerFocus
+                ) { command in
                     editorCommand = RichEditorCommandToken(command: command)
                 }
             } else {
@@ -72,13 +89,13 @@ struct NoteEditorView: View {
             )
             .accessibilityLabel(editorMode == .page ? "Document page" : "Markdown source")
 
-            if !detectedLinks.isEmpty {
-                Divider()
-                DetectedLinksView(urls: detectedLinks)
-            }
-
             Divider()
             metadataBar
+        }
+        .frame(width: paneGeometry.size.width, height: paneGeometry.size.height, alignment: .topLeading)
+        .coordinateSpace(name: RichStylePickerCoordinateSpace.name)
+        .onPreferenceChange(RichStylePickerTriggerFramePreferenceKey.self) { frame in
+            paragraphStyleTriggerFrame = frame
         }
         .onChange(of: draft.body) { _, _ in draft.deriveInitialTitleIfNeeded() }
         .onChange(of: draft) { _, updated in
@@ -99,6 +116,18 @@ struct NoteEditorView: View {
             lastEditedAt = latest.updatedAt
         }
         .onChange(of: tagText) { _, _ in commitTags() }
+        .onChange(of: editorModeRawValue) { _, mode in
+            guard mode != EditorMode.page.rawValue else { return }
+            dismissParagraphStylePicker(returningFocusToTrigger: false)
+        }
+        .simultaneousGesture(
+            SpatialTapGesture().onEnded { value in
+                guard showsParagraphStylePicker,
+                      !pickerPlacement.frame.contains(value.location) else { return }
+                dismissParagraphStylePicker(returningFocusToTrigger: false)
+            },
+            including: showsParagraphStylePicker ? .all : .none
+        )
         .toolbar {
             ToolbarItemGroup {
                 if currentNote?.trashedAt == nil {
@@ -160,6 +189,50 @@ struct NoteEditorView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This cannot be undone. Clasp does not promise secure erasure on SSD storage.")
+        }
+        .overlay(alignment: .topLeading) {
+            if showsParagraphStylePicker,
+               !paragraphStyleTriggerFrame.isNull,
+               pickerPlacement.frame.width > 0,
+               pickerPlacement.frame.height > 0 {
+                ZStack(alignment: .topLeading) {
+                    // NSTextView consumes pointer events before SwiftUI's
+                    // parent gesture can observe them. A pane-sized dismiss
+                    // layer gives this menu the native first-click-away
+                    // behavior without moving the editor's caret underneath.
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            dismissParagraphStylePicker(returningFocusToTrigger: false)
+                        }
+                        .accessibilityHidden(true)
+
+                    RichParagraphStylePicker(
+                        focus: $paragraphStylePickerFocus,
+                        send: applyParagraphStyle,
+                        dismissReturningToTrigger: {
+                            dismissParagraphStylePicker(returningFocusToTrigger: true)
+                        }
+                    )
+                    .frame(
+                        width: pickerPlacement.frame.width,
+                        height: pickerPlacement.frame.height,
+                        alignment: .top
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: Color(nsColor: .shadowColor).opacity(0.2), radius: 10, y: 3)
+                    .offset(x: pickerPlacement.frame.minX, y: pickerPlacement.frame.minY)
+                    .transition(
+                        .opacity.combined(with: .scale(scale: 0.98, anchor: transitionAnchor))
+                    )
+                    .zIndex(1)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .zIndex(20)
+            }
+        }
+        .animation(.easeOut(duration: 0.12), value: showsParagraphStylePicker)
+        .clipped()
         }
     }
 
@@ -322,14 +395,6 @@ struct NoteEditorView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var detectedLinks: [URL] {
-        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return [] }
-        let range = NSRange(draft.body.startIndex..., in: draft.body)
-        return ExternalLinkPolicy.filterAllowed(
-            detector.matches(in: draft.body, range: range).compactMap(\.url)
-        )
-    }
-
     private var currentNote: Note? {
         if isVault {
             return appState.vaultNotes?.first { $0.id == draft.id }
@@ -366,6 +431,24 @@ struct NoteEditorView: View {
             body: note.body,
             tags: note.tags
         )
+    }
+
+    private func applyParagraphStyle(_ command: RichEditorCommand) {
+        showsParagraphStylePicker = false
+        paragraphStylePickerFocus = nil
+        editorCommand = RichEditorCommandToken(command: command)
+    }
+
+    private func dismissParagraphStylePicker(returningFocusToTrigger: Bool) {
+        guard showsParagraphStylePicker || paragraphStylePickerFocus != nil else { return }
+        showsParagraphStylePicker = false
+        paragraphStylePickerFocus = nil
+        guard returningFocusToTrigger else { return }
+        Task { @MainActor in
+            await Task.yield()
+            guard !showsParagraphStylePicker, editorMode == .page else { return }
+            paragraphStylePickerFocus = .trigger
+        }
     }
 }
 
@@ -550,46 +633,5 @@ private struct AttachmentGallery: View {
                 }
             }
         }
-    }
-}
-
-private struct DetectedLinksView: View {
-    let urls: [URL]
-
-    private let columns = [
-        GridItem(.adaptive(minimum: 150, maximum: 280), spacing: 10, alignment: .leading)
-    ]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(urls.count == 1 ? "Detected Link" : "Detected Links", systemImage: AppIcon.Content.link)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
-                ForEach(Array(urls.prefix(12).enumerated()), id: \.offset) { _, url in
-                    Link(destination: url) {
-                        Text(linkLabel(for: url))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    .help(url.absoluteString)
-                    .accessibilityLabel(url.absoluteString)
-                }
-            }
-            if urls.count > 12 {
-                Text("\(urls.count - 12) more links are available in the note body.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 9)
-    }
-
-    private func linkLabel(for url: URL) -> String {
-        guard let host = url.host() else { return url.absoluteString }
-        let path = url.path(percentEncoded: false)
-        return path == "/" || path.isEmpty ? host : "\(host)\(path)"
     }
 }

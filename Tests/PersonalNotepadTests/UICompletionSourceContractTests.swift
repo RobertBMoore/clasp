@@ -95,6 +95,29 @@ final class UICompletionSourceContractTests: XCTestCase {
         XCTAssertTrue(bus.contains("static func takeMainNoteRequests()"))
     }
 
+    func testAppearanceUsesOneApplicationWideAppKitBoundary() throws {
+        let app = try source(at: "Sources/PersonalNotepad/App/PersonalNotepadApp.swift")
+        let settings = try source(at: "Sources/PersonalNotepad/Views/Settings/SettingsView.swift")
+        let controller = try source(at: "Sources/PersonalNotepad/Support/AppAppearanceController.swift")
+
+        XCTAssertTrue(app.contains("func applicationWillFinishLaunching"))
+        XCTAssertTrue(app.contains("AppAppearanceController.applyStoredPreference()"))
+        XCTAssertFalse(app.contains(".preferredColorScheme"))
+        XCTAssertFalse(settings.contains(".preferredColorScheme"))
+        XCTAssertTrue(settings.contains("AppAppearanceController.apply(preference)"))
+        XCTAssertTrue(controller.contains("application.appearance ="))
+    }
+
+    func testSettingsKeepsItsWindowStableWithoutTruncatingAccessibleDocuments() throws {
+        let settings = try source(at: "Sources/PersonalNotepad/Views/Settings/SettingsView.swift")
+
+        XCTAssertTrue(settings.contains(".frame(minHeight: SettingsLayoutMetrics.headerHeight)"))
+        XCTAssertFalse(settings.contains(".frame(height: SettingsLayoutMetrics.headerHeight)"))
+        XCTAssertTrue(settings.contains("SettingsTabPage(pane: .documents) {\n            ScrollView(.vertical)"))
+        XCTAssertFalse(settings.contains("maxHeight: SettingsLayoutMetrics.presetDescriptionHeight"))
+        XCTAssertFalse(settings.contains("maxHeight: SettingsLayoutMetrics.fontDescriptionHeight"))
+    }
+
     func testHelpUsesTheDistributionAwareApplicationSupportPath() throws {
         let help = try source(at: "Sources/PersonalNotepad/Views/Help/HelpView.swift")
         XCTAssertTrue(help.contains("AppPaths.applicationSupportDirectory.path(percentEncoded: false)"))
@@ -123,6 +146,25 @@ final class UICompletionSourceContractTests: XCTestCase {
         let noteList = try source(at: "Sources/PersonalNotepad/Views/Main/NoteListView.swift")
         XCTAssertTrue(noteList.contains("Encrypted Vault \\(note.contentType.title.lowercased())"))
         XCTAssertFalse(noteList.contains("Encrypted Vault (note.contentType.title.lowercased())"))
+    }
+
+    func testEditorDoesNotInsertOrRemoveAScannedLinkFooterWhileTyping() throws {
+        let editor = try source(at: "Sources/PersonalNotepad/Views/Main/NoteEditorView.swift")
+
+        XCTAssertFalse(editor.contains("if !detectedLinks.isEmpty"))
+        XCTAssertFalse(editor.contains("private struct DetectedLinksView"))
+        XCTAssertFalse(editor.contains("NSDataDetector"))
+        XCTAssertFalse(editor.contains("Task.detached"))
+    }
+
+    func testParagraphStylePickerOwnsClickAwayAndEscapeDismissal() throws {
+        let editor = try source(at: "Sources/PersonalNotepad/Views/Main/NoteEditorView.swift")
+        let richEditor = try source(at: "Sources/PersonalNotepad/Views/Main/RichMarkdownEditor.swift")
+
+        XCTAssertTrue(editor.contains("Color.clear\n                        .contentShape(Rectangle())"))
+        XCTAssertTrue(editor.contains("dismissParagraphStylePicker(returningFocusToTrigger: false)"))
+        XCTAssertTrue(richEditor.contains(".onKeyPress(.escape, phases: .down)"))
+        XCTAssertTrue(richEditor.contains("dismissReturningToTrigger()"))
     }
 
     private func source(at relativePath: String) throws -> String {

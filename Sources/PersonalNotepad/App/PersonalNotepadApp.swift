@@ -16,8 +16,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 #endif
     private var terminationIsFinishing = false
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Apply the saved choice before SwiftUI presents its first window so a
+        // dark launch never flashes a light content tree (or vice versa).
         NSApp.setActivationPolicy(.regular)
+        AppAppearanceController.applyStoredPreference()
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
 #if !CLASP_VISUAL_QA
         NSApp.servicesProvider = serviceProvider
         NSUpdateDynamicServices()
@@ -39,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 #if !CLASP_VISUAL_QA
         let hotKeyResult = hotKeys.register()
         reportQuickCaptureShortcutFallbackIfNeeded(hotKeyResult)
+        reportSupportingShortcutFailuresIfNeeded(hotKeyResult)
 #if !CLASP_APP_STORE
         reportSelectionShortcutFailureIfNeeded(hotKeyResult)
 #endif
@@ -96,11 +103,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 #if !CLASP_VISUAL_QA
     private func reportQuickCaptureShortcutFallbackIfNeeded(_ result: GlobalHotKeyRegistrationResult) {
-        guard !result.contains(.quickCapturePrimary) else { return }
+        let definitions = [
+            hotKeys.definition(for: .quickCapturePrimary),
+            hotKeys.definition(for: .quickCaptureFallback)
+        ].compactMap { $0 }
+        guard let message = GlobalHotKeyMessageFormatter.quickCaptureFailureMessage(
+            result: result,
+            definitions: definitions
+        ) else { return }
         DispatchQueue.main.async {
-            let message = result.contains(.quickCaptureFallback)
-                ? "Option-Space is in use. Quick Capture: Control-Option-Command-N"
-                : "Quick Capture shortcuts are in use. Use the Clasp menu bar icon."
+            LocalConfirmationPresenter.shared.show(message, kind: .warning)
+        }
+    }
+
+    private func reportSupportingShortcutFailuresIfNeeded(_ result: GlobalHotKeyRegistrationResult) {
+        let definitions = [
+            GlobalHotKeyAction.saveClipboardToInbox,
+            .saveClipboardToVault,
+            .lockVault
+        ].compactMap { hotKeys.definition(for: $0) }
+        guard let message = GlobalHotKeyMessageFormatter.supportingActionFailureMessage(
+            result: result,
+            definitions: definitions
+        ) else { return }
+        DispatchQueue.main.async {
             LocalConfirmationPresenter.shared.show(message, kind: .warning)
         }
     }
@@ -108,7 +134,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 #if !CLASP_APP_STORE && !CLASP_VISUAL_QA
     private func reportSelectionShortcutFailureIfNeeded(_ result: GlobalHotKeyRegistrationResult) {
-        let required: Set<GlobalHotKeyAction> = [.captureSelectionToInbox, .captureSelectionToVault]
+        let required = Set(
+            [GlobalHotKeyAction.captureSelectionToInbox, .captureSelectionToVault]
+                .filter { hotKeys.definition(for: $0) != nil }
+        )
+        guard !required.isEmpty else { return }
         guard !required.isSubset(of: result.registered) else { return }
         DispatchQueue.main.async {
             LocalConfirmationPresenter.shared.show(
@@ -169,20 +199,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct PersonalNotepadApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var appState = AppState()
-    @AppStorage(PreferenceKeys.appAppearance) private var appearance = AppAppearance.system.rawValue
 #if CLASP_DIRECT_DISTRIBUTION
     @StateObject private var updater = UpdaterService()
 #endif
-
-    private var preferredColorScheme: ColorScheme? {
-        AppAppearance(rawValue: appearance)?.colorScheme
-    }
 
     var body: some Scene {
         Window("Clasp", id: "main") {
             MainRootView(appState: appState)
                 .background(GlobalActionReceiver(appState: appState))
-                .preferredColorScheme(preferredColorScheme)
                 .task { await appState.start() }
         }
 #if CLASP_VISUAL_QA
@@ -205,7 +229,6 @@ struct PersonalNotepadApp: App {
             QuickCaptureView(appState: appState)
                 .background(FloatingWindowConfigurator())
                 .background(GlobalActionReceiver(appState: appState))
-                .preferredColorScheme(preferredColorScheme)
         }
         .defaultSize(width: 520, height: 330)
         .windowResizability(.contentSize)
@@ -213,7 +236,6 @@ struct PersonalNotepadApp: App {
         Window("Welcome", id: "onboarding") {
             OnboardingView()
                 .environment(appState)
-                .preferredColorScheme(preferredColorScheme)
         }
         .defaultSize(width: 900, height: 640)
         .windowResizability(.contentSize)
@@ -221,19 +243,16 @@ struct PersonalNotepadApp: App {
         Window("Clasp Help", id: "help") {
             HelpView()
                 .environment(appState)
-                .preferredColorScheme(preferredColorScheme)
         }
         .defaultSize(width: 720, height: 620)
 
         Settings {
             SettingsView()
-                .preferredColorScheme(preferredColorScheme)
         }
 
         MenuBarExtra("Clasp", systemImage: AppIcon.Utility.app) {
             MenuBarContent(appState: appState)
                 .background(GlobalActionReceiver(appState: appState))
-                .preferredColorScheme(preferredColorScheme)
         }
     }
 }
@@ -282,7 +301,9 @@ private struct NotepadCommands: Commands {
             Button("Lock Vault") {
                 GlobalActionBus.post(.lockVault)
             }
-            .keyboardShortcut("l", modifiers: [.control, .option, .command])
+            // GlobalHotKeyManager is the sole trigger owner. Registering a
+            // second app-local equivalent here would survive a user clearing
+            // the editable global shortcut in Settings.
         }
 
         CommandGroup(replacing: .help) {

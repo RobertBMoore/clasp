@@ -35,44 +35,46 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
         }
     }
 
+    @MainActor
     var message: String {
         switch self {
         case .welcome:
             "Capture text, links, code, checklists, contacts, and images. Send ordinary material to Clasp or sensitive material directly to the encrypted Vault."
         case .quickCapture:
-            "Press Option–Space from any app, type, then press Command–Return. New captures go to Inbox unless you choose Vault."
+            "Press \(shortcutWords(.quickCapturePrimary)) from any app, type, then press Command–Return. New captures go to Inbox unless you choose Vault."
         case .clipboard:
-            "Copy text, a link, or an image. Choose Add Clipboard to Clasp for Inbox, or Add Clipboard to Vault for encrypted storage and optional safe clipboard clearing."
+            "Copy text, Markdown, a link, or an image. Press \(shortcutWords(.saveClipboardToInbox)) for Inbox or \(shortcutWords(.saveClipboardToVault)) for a secure Vault note. Menu-bar and Dock actions offer the same choices."
         case .selection:
             if DistributionCapabilities.supportsAccessibilitySelectionCapture {
-                "Select text, an image, or a link. Press Control–Option–N for a normal Inbox note or Control–Option–P for a private Vault note. You can also use either action from the source app’s Services menu."
+                "Select text, an image, or a link. Press \(shortcutWords(.captureSelectionToInbox)) for a normal Inbox note or \(shortcutWords(.captureSelectionToVault)) for a secure Vault note. You can also use either action from the source app’s Services menu."
             } else {
-                "Select text, an image, or a link, then choose Create Note in Clasp or Create Private Note in Clasp from the source app’s Services menu."
+                "Select text, an image, or a link, then choose \(inboxService.title) or \(vaultService.title) from the source app’s Services menu."
             }
         case .organize:
             "Clasp identifies and tags incoming content locally. Page mode styles common AI-generated headings, emphasis, links, lists, checklists, quotes, and code while portable Markdown remains the canonical source."
         case .vault:
             if DistributionCapabilities.supportsAccessibilitySelectionCapture {
-                "Press Control–Option–P to add selected content directly to Vault. Titles, tags, image bytes, recognized text, and bodies are encrypted at rest."
+                "Press \(shortcutWords(.captureSelectionToVault)) to add selected content directly to Vault. Titles, tags, image bytes, recognized text, and bodies are encrypted at rest."
             } else {
-                "Use Create Private Note in Clasp from the source app’s Services menu to send selected content to Vault. Titles, tags, image bytes, recognized text, and bodies are encrypted at rest."
+                "Use \(vaultService.title) from the source app’s Services menu to send selected content to Vault. Titles, tags, image bytes, recognized text, and bodies are encrypted at rest."
             }
         case .backup:
             "Regular notes are portable Markdown files. Vault backups are encrypted exports with a recovery key shown only once."
         }
     }
 
+    @MainActor
     var tip: String {
         switch self {
         case .welcome:
             "Two destinations, everywhere: Add to Clasp for everyday material; Add to Clasp Vault when it is sensitive."
         case .quickCapture:
-            "If another app owns Option–Space, use Control–Option–Command–N. You can always click Clasp in the menu bar or right-click its Dock icon."
+            "If another app owns \(shortcutWords(.quickCapturePrimary)), use \(shortcutWords(.quickCaptureFallback)). You can always click Clasp in the menu bar or right-click its Dock icon."
         case .clipboard:
             "Clasp reads once when triggered. It never watches the clipboard or keeps history, and it accepts images up to 25 MB."
         case .selection:
             if DistributionCapabilities.supportsAccessibilitySelectionCapture {
-                "The paired shortcuts use N for Normal and P for Private. Approve Clasp once in Privacy & Security › Accessibility so the shortcut can issue one Copy command; Clasp never monitors your keyboard."
+                "Choose the paired Normal and Protected selection shortcuts that fit your Mac in Settings. Approve Clasp once in Privacy & Security › Accessibility so a shortcut can issue one Copy command; Clasp never monitors your keyboard."
             } else {
                 "Services receive only the selection you explicitly send. Clasp never requests Accessibility permission or monitors your keyboard."
             }
@@ -80,9 +82,9 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
             "Use the Page / Markdown switch above any note. Both views edit the same source, and Documents settings change its presentation without adding style data to the file."
         case .vault:
             if DistributionCapabilities.supportsAccessibilitySelectionCapture {
-                "Use ⌃⌥P for a selected private note. For clipboard capture, use the shield menu item; when safe clearing is enabled, Clasp clears only the exact value it captured, never anything copied afterward."
+                "Use \(shortcutSymbols(.captureSelectionToVault)) for a selected secure Vault note, or \(shortcutSymbols(.saveClipboardToVault)) after copying. Safe clearing removes only the exact value Clasp captured, never anything copied afterward."
             } else {
-                "Use Create Private Note in Clasp in Services for a selected private note. For clipboard capture, use the shield menu item; when safe clearing is enabled, Clasp clears only the exact value it captured, never anything copied afterward."
+                "Use \(vaultService.title) in Services for selected content, or \(shortcutSymbols(.saveClipboardToVault)) after copying. Safe clearing removes only the exact value Clasp captured, never anything copied afterward."
             }
         case .backup:
             "Store the Vault recovery key separately. Clasp cannot recover a lost key; password managers remain best for credentials and recovery codes."
@@ -111,5 +113,26 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
         case .vault: .green
         case .backup: .cyan
         }
+    }
+
+    @MainActor
+    private var inboxService: MacOSCaptureServiceDescriptor {
+        MacOSCaptureServiceDescriptor.all[0]
+    }
+
+    @MainActor
+    private var vaultService: MacOSCaptureServiceDescriptor {
+        MacOSCaptureServiceDescriptor.all[1]
+    }
+
+    @MainActor
+    private func shortcutSymbols(_ action: GlobalHotKeyAction) -> String {
+        GlobalHotKeyPreferences.shared.shortcut(for: action)?.symbolDisplayName ?? "Not set"
+    }
+
+    @MainActor
+    private func shortcutWords(_ action: GlobalHotKeyAction) -> String {
+        GlobalHotKeyPreferences.shared.shortcut(for: action)?
+            .displayName.replacingOccurrences(of: "-", with: "–") ?? "no shortcut"
     }
 }

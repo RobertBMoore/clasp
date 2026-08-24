@@ -7,6 +7,9 @@ source "$ROOT_DIR/release/config.env"
 # shellcheck source=lib/output_custody.sh
 # shellcheck disable=SC1091
 source "$ROOT_DIR/script/lib/output_custody.sh"
+# shellcheck source=lib/direct_package_resolution.sh
+# shellcheck disable=SC1091
+source "$ROOT_DIR/script/lib/direct_package_resolution.sh"
 
 CHANNEL="local"; CONFIGURATION="debug"; VERSION="$CLASP_VERSION"; BUILD_NUMBER="$CLASP_BUILD_NUMBER"
 OUTPUT="$ROOT_DIR/dist/$CLASP_APP_NAME.app"; SIGN_IDENTITY="-"; PROFILE=""
@@ -75,19 +78,18 @@ cleanup() {
     fi
   fi
   if ((CREATED_ROOT_RESOLVED)); then
-    if [[ -f "$ROOT_RESOLVED" ]] && cmp -s "$ROOT_RESOLVED" "$DIRECT_RESOLVED"; then
-      rm -f "$ROOT_RESOLVED"
-    else
-      echo "refusing to remove a changed direct-build Package.resolved" >&2
+    if ! clasp_remove_direct_package_resolution "$ROOT_RESOLVED" "$DIRECT_RESOLVED"; then
+      status=1
     fi
   fi
-  return "$status"
+  trap - EXIT
+  exit "$status"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-[[ ! -e "$ROOT_RESOLVED" ]] || {
+[[ ! -e "$ROOT_RESOLVED" && ! -L "$ROOT_RESOLVED" ]] || {
   echo "root Package.resolved is forbidden; Sparkle resolution is isolated to direct builds" >&2
   exit 1
 }
@@ -96,8 +98,8 @@ if [[ "$CHANNEL" == direct ]]; then
   [[ "$SIGN_IDENTITY" != "-" ]] || { echo "direct releases require a Developer ID Application identity" >&2; exit 1; }
   [[ "$UPDATE_FEED_URL" == https://* ]] || { echo "CLASP_UPDATE_FEED_URL must be HTTPS" >&2; exit 1; }
   [[ "$SPARKLE_PUBLIC_KEY" =~ ^[A-Za-z0-9+/]{43}=$ ]] || { echo "CLASP_SPARKLE_PUBLIC_KEY must be a 32-byte base64 EdDSA public key" >&2; exit 1; }
-  [[ -f "$DIRECT_RESOLVED" ]] || { echo "direct-only SwiftPM lockfile is missing" >&2; exit 1; }
-  cp "$DIRECT_RESOLVED" "$ROOT_RESOLVED"
+  [[ -f "$DIRECT_RESOLVED" && ! -L "$DIRECT_RESOLVED" ]] || { echo "direct-only SwiftPM lockfile is missing or unsafe" >&2; exit 1; }
+  clasp_install_direct_package_resolution "$ROOT_RESOLVED" "$DIRECT_RESOLVED"
   CREATED_ROOT_RESOLVED=1
 fi
 if [[ "$CHANNEL" == app-store ]]; then

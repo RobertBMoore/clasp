@@ -3,17 +3,18 @@ import SwiftUI
 struct HelpView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.openWindow) private var openWindow
+    @State private var shortcutPreferences = GlobalHotKeyPreferences.shared
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 HelpSection(title: "Add Anything: Clasp or Vault", symbol: "square.and.arrow.down") {
                     ClipboardHelpFlow()
-                    Text("Copy text, a link, or an image. Add Clipboard to Clasp creates an Inbox note; Add Clipboard to Vault encrypts it and, when safe clearing is enabled in Settings, clears only the captured clipboard value.")
+                    Text("Copy text, Markdown, a link, or an image. Press \(shortcutWords(.saveClipboardToInbox)) for a normal Inbox note or \(shortcutWords(.saveClipboardToVault)) for a secure Vault note. The menu-bar and Dock actions do the same thing.")
                     if DistributionCapabilities.supportsAccessibilitySelectionCapture {
-                        Text("For selected content, press Control–Option–N for a normal Inbox note or Control–Option–P for a private Vault note. Clipboard capture remains available from the Clasp menu-bar icon and Dock right-click menu.")
+                        Text("For a one-step selection capture, press \(shortcutWords(.captureSelectionToInbox)) for a normal Inbox note or \(shortcutWords(.captureSelectionToVault)) for a secure Vault note. These direct-build actions request Accessibility only to issue Copy once.")
                     } else {
-                        Text("For selected content, choose Create Note in Clasp or Create Private Note in Clasp from the source app’s Services menu. Clipboard capture remains available from the Clasp menu-bar icon and Dock right-click menu.")
+                        Text("For selected content, choose \(inboxService.title) or \(vaultService.title) from the source app’s Services menu. Clipboard shortcuts remain available for text, Markdown, links, and images without Accessibility access.")
                     }
                     Label("When enabled, safe clearing removes the captured value only if your clipboard has not changed. Anything copied afterward is left alone.", systemImage: "checkmark.shield")
                         .font(.callout)
@@ -21,26 +22,26 @@ struct HelpView: View {
                 }
 
                 HelpSection(title: "Three easy ways", symbol: "hand.point.up.left") {
-                    Text("1. Press Option-Space anywhere for Quick Capture.")
-                    Text("   If Option-Space is already used, press Control-Option-Command-N.")
-                    Text("2. Click Clasp in the menu bar for all quick actions.")
-                    Text("3. Right-click Clasp in the Dock for both clipboard destinations, Quick Capture, Open, or Lock Vault.")
+                    Text("1. Press \(shortcutWords(.quickCapturePrimary)) anywhere for Quick Capture.")
+                    Text("   If it is already used, press \(shortcutWords(.quickCaptureFallback)).")
+                    Text("2. Copy something, then press \(shortcutWords(.saveClipboardToInbox)) for Inbox or \(shortcutWords(.saveClipboardToVault)) for Vault.")
+                    Text("3. Click Clasp in the menu bar or right-click its Dock icon for the same quick actions.")
                 }
 
                 HelpSection(title: "Feature Trigger Guide", symbol: "sparkles") {
                     Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 10) {
-                        trigger("Quick Capture", "⌥ Space", "Fallback: ⌃⌥⌘N")
+                        trigger("Quick Capture", shortcutSymbols(.quickCapturePrimary), "Fallback: \(shortcutSymbols(.quickCaptureFallback))")
                         if DistributionCapabilities.supportsAccessibilitySelectionCapture {
-                            trigger("Selected content to Inbox", "⌃⌥N", "Right-click › Services › Create Note in Clasp")
-                            trigger("Selected content to Vault", "⌃⌥P", "Right-click › Services › Create Private Note in Clasp")
+                            trigger("Selected content to Inbox", shortcutSymbols(.captureSelectionToInbox), "Services: \(inboxService.title)")
+                            trigger("Selected content to Vault", shortcutSymbols(.captureSelectionToVault), "Services: \(vaultService.title)")
                         } else {
-                            trigger("Selected content to Inbox", "Services", "Create Note in Clasp")
-                            trigger("Selected content to Vault", "Services", "Create Private Note in Clasp")
+                            trigger("Selected content to Inbox", "Default \(inboxService.defaultShortcut)", inboxService.title)
+                            trigger("Selected content to Vault", "Default \(vaultService.defaultShortcut)", vaultService.title)
                         }
-                        trigger("Add clipboard to Clasp", "Menu bar", "Or right-click the Dock icon")
-                        trigger("Add clipboard to Vault", "Menu bar", "Or right-click the Dock icon")
-                        trigger("New note", "⌘N", "Creates privately while you are in Vault; otherwise uses Inbox")
-                        trigger("Lock Vault", "⌃⌥⌘L", "Menu bar, toolbar, or Dock")
+                        trigger("Copied content to Inbox", shortcutSymbols(.saveClipboardToInbox), "Menu bar or Dock")
+                        trigger("Copied content to Vault", shortcutSymbols(.saveClipboardToVault), "Menu bar or Dock")
+                        trigger("New note", "⌘N", "Creates in Vault when you are viewing Vault; otherwise uses Inbox")
+                        trigger("Lock Vault", shortcutSymbols(.lockVault), "Menu bar, toolbar, or Dock")
                         trigger("Organize a note", "Right-click note", "Pin, archive, trash, restore")
                     }
                 }
@@ -49,22 +50,24 @@ struct HelpView: View {
                     Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
                         shortcut("New note", "⌘N")
                         shortcut("New secure note", "⇧⌘N")
-                        shortcut("Quick Capture", "⌥ Space")
-                        shortcut("Quick Capture fallback", "⌃⌥⌘N")
+                        shortcut("Quick Capture", shortcutSymbols(.quickCapturePrimary))
+                        shortcut("Quick Capture fallback", shortcutSymbols(.quickCaptureFallback))
+                        shortcut("Copied content to Inbox", shortcutSymbols(.saveClipboardToInbox))
+                        shortcut("Copied content to Vault", shortcutSymbols(.saveClipboardToVault))
                         if DistributionCapabilities.supportsAccessibilitySelectionCapture {
-                            shortcut("Selected content to Inbox", "⌃⌥N")
-                            shortcut("Selected content to Vault", "⌃⌥P")
+                            shortcut("Selected content to Inbox", shortcutSymbols(.captureSelectionToInbox))
+                            shortcut("Selected content to Vault", shortcutSymbols(.captureSelectionToVault))
                         }
-                        shortcut("Lock Vault", "⌃⌥⌘L")
+                        shortcut("Lock Vault", shortcutSymbols(.lockVault))
                     }
                 }
 
                 HelpSection(title: "Right-click Text, Images, or Links", symbol: "cursorarrow.click.2") {
-                    Text("Choose Services › Create Note in Clasp for a normal Inbox note, or Create Private Note in Clasp for an encrypted Vault note. Content supplied by the source app is captured without Accessibility permission.")
+                    Text("Choose Services › \(inboxService.title) for a normal Inbox note, or \(vaultService.title) for a secure encrypted Vault note. Content supplied by the source app is captured without Accessibility permission.")
                     if DistributionCapabilities.supportsAccessibilitySelectionCapture {
-                        Text("The reliable shortcuts are Control–Option–N for normal and Control–Option–P for private. On first use, allow Clasp under Privacy & Security › Accessibility. Clasp uses that permission only to issue one Copy command for the current selection; it does not monitor your keyboard.")
+                        Text("The one-step shortcuts are \(shortcutWords(.captureSelectionToInbox)) for Inbox and \(shortcutWords(.captureSelectionToVault)) for Vault. On first use, allow Clasp under Privacy & Security › Accessibility. Clasp uses that permission only to issue one Copy command for the current selection; it does not monitor your keyboard.")
                     } else {
-                        Text("The App Store build intentionally uses macOS Services for selected content and never requests Accessibility permission.")
+                        Text("The App Store build intentionally uses macOS Services for selected content and never requests Accessibility permission. The shortcuts shown above are macOS defaults; you can change or remove them in Keyboard Settings.")
                     }
                     HStack {
                         if DistributionCapabilities.supportsAccessibilitySelectionCapture {
@@ -146,6 +149,23 @@ struct HelpView: View {
 
     private func shortcut(_ title: String, _ keys: String) -> some View {
         GridRow { Text(title); Text(keys).font(.body.monospaced()).foregroundStyle(.secondary) }
+    }
+
+    private var inboxService: MacOSCaptureServiceDescriptor {
+        MacOSCaptureServiceDescriptor.all[0]
+    }
+
+    private var vaultService: MacOSCaptureServiceDescriptor {
+        MacOSCaptureServiceDescriptor.all[1]
+    }
+
+    private func shortcutSymbols(_ action: GlobalHotKeyAction) -> String {
+        shortcutPreferences.shortcut(for: action)?.symbolDisplayName ?? "Not set"
+    }
+
+    private func shortcutWords(_ action: GlobalHotKeyAction) -> String {
+        shortcutPreferences.shortcut(for: action)?
+            .displayName.replacingOccurrences(of: "-", with: "–") ?? "no shortcut"
     }
 
     private var dataRootPath: String {

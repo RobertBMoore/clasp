@@ -11,8 +11,11 @@ on:
 permissions:
   contents: write
 concurrency:
+  # Preserve approved release requests instead of replacing an older pending
+  # run when another request enters this protected serial group.
   group: clasp-direct-release
   cancel-in-progress: false
+  queue: max
 jobs:
   signed-notarized-draft:
     runs-on: macos-26
@@ -65,6 +68,30 @@ jobs:
           fi
           printf 'version=%s\n' "$RAW_VERSION" >> "$GITHUB_OUTPUT"
           printf 'build_number=%s\n' "$RAW_BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+      - name: Test the exact direct-download compilation boundary
+        env:
+          CLASP_DIRECT_DISTRIBUTION: "1"
+        run: |
+          set -euo pipefail
+          source release/config.env
+          source script/lib/direct_package_resolution.sh
+          clasp_install_direct_package_resolution Package.resolved release/Package.direct.resolved
+          cleanup_direct_resolution() {
+            local status=$?
+            trap - EXIT
+            if ! clasp_remove_direct_package_resolution Package.resolved release/Package.direct.resolved; then
+              status=1
+            fi
+            exit "$status"
+          }
+          trap cleanup_direct_resolution EXIT
+          swift test \
+            --scratch-path .build-direct-release-test \
+            --configuration release \
+            --arch "$CLASP_ARCH" \
+            --force-resolved-versions \
+            -Xswiftc -DCLASP_DIRECT_DISTRIBUTION
+          clasp_verify_direct_package_resolution Package.resolved release/Package.direct.resolved
       - name: Import Developer ID certificate into an ephemeral keychain
         env:
           P12_BASE64: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_BASE64 }}

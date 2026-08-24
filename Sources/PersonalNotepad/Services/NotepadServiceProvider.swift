@@ -23,6 +23,30 @@ final class ApplicationBridge {
 
 @MainActor
 final class NotepadServiceProvider: NSObject {
+    typealias CaptureSubmission = @MainActor (CapturedContent, CaptureDestination) -> Void
+    typealias CaptureReader = @MainActor (NSPasteboard) throws -> CapturedContent
+
+    private let captureSubmission: CaptureSubmission
+    private let captureReader: CaptureReader
+
+    override convenience init() {
+        self.init(
+            captureReader: { try PasteboardCaptureReader.read(from: $0) },
+            captureSubmission: { content, destination in
+                ApplicationBridge.shared.submitCapture(content, destination: destination)
+            }
+        )
+    }
+
+    init(
+        captureReader: @escaping CaptureReader = { try PasteboardCaptureReader.read(from: $0) },
+        captureSubmission: @escaping CaptureSubmission
+    ) {
+        self.captureReader = captureReader
+        self.captureSubmission = captureSubmission
+        super.init()
+    }
+
     @objc func addToClasp(_ pasteboard: NSPasteboard, userData: String, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
         submit(pasteboard, to: .inbox, error: error)
     }
@@ -41,8 +65,8 @@ final class NotepadServiceProvider: NSObject {
         error errorPointer: AutoreleasingUnsafeMutablePointer<NSString?>
     ) {
         do {
-            let content = try PasteboardCaptureReader.read(from: pasteboard)
-            Task { @MainActor in ApplicationBridge.shared.submitCapture(content, destination: destination) }
+            let content = try captureReader(pasteboard)
+            captureSubmission(content, destination)
         } catch let captureError as LocalizedError {
             errorPointer.pointee = (captureError.errorDescription ?? "Clasp could not read that content.") as NSString
         } catch {

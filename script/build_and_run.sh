@@ -14,12 +14,12 @@ esac
 
 cd "$ROOT_DIR"
 export CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.cache/clang"
-[[ ! -e Package.resolved ]] || {
+[[ ! -e Package.resolved && ! -L Package.resolved ]] || {
   echo "root Package.resolved is forbidden for the offline local channel" >&2
   exit 1
 }
 CLASP_DIRECT_DISTRIBUTION=0 swift test
-[[ ! -e Package.resolved ]] || {
+[[ ! -e Package.resolved && ! -L Package.resolved ]] || {
   echo "offline local tests unexpectedly created Package.resolved" >&2
   exit 1
 }
