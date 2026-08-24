@@ -1,7 +1,7 @@
 # Clasp external release handoff
 
 Observed: **2026-08-24**
-Status: **local product ready; Bundle ID, App Store Connect record, public GitHub repository, protected `main`, and protected release environments created; remaining external identities, compliance, and release publication remain fail-closed**
+Status: **local product ready; Bundle ID, App Store Connect record, Store identities/profile, public GitHub repository, protected `main`, and protected release environments created; remaining compliance, protected secret custody, signed acceptance, and release publication remain fail-closed**
 
 This guide starts where the verified local build and repository release scaffolding stop. It does not authorize accepting agreements, choosing legal/compliance answers, generating credentials, publishing source, uploading binaries, or submitting for review without Robert at the relevant gate.
 
@@ -9,23 +9,23 @@ This guide starts where the verified local build and repository release scaffold
 
 - **App Store Connect → Apps** contains the confirmed macOS record `Clasp: Private Markdown Notes`, Apple app ID `6804786714`, version `1.0`, in `Prepare for Submission`. Apple rejected the globally occupied bare product name `Clasp`; Robert approved the distinct Store name while the installed app remains `Clasp`. The permanent SKU was verified in the authenticated account and is intentionally withheld from this public repository.
 - **Apple Developer → Identifiers** lists `Clasp` / `com.robertmoore.personalnotepad` under Paper LLC team `R3Z7H2TRCB`; this identifier was registered on 2026-08-24 with no optional capability selected. Apple's default In-App Purchase capability remains present.
-- **Apple Developer → Certificates** lists two valid Developer ID Application certificates for direct distribution and one development certificate. It does not list an Apple Distribution / Mac App Distribution or Mac Installer Distribution certificate. The local keychain has zero valid code-signing identities, so the server-side certificate rows do not prove private-key custody.
-- **Apple Developer → Profiles** lists only DRG Agent Relay / Bridge profiles; no Clasp App Store profile exists.
+- **Apple Developer → Certificates** now lists valid Mac App Distribution and Mac Installer Distribution certificates for Paper LLC through 2027-08-24, in addition to the pre-existing Developer ID and development rows. Their independently generated private keys are present in the login Keychain and match the imported public certificates. The login Keychain also proves private-key custody for both pre-existing Developer ID Application identities (SHA-256 `1E6A022B16AC3CCDCCB816383FCF03C0DF6784437337E4EB491B9436136E6F78`, expiring 2031-07-20, and `322807574BAAB0C6030832DD5BA786F6F7FA6A84090D14523DFE3706C9D81E10`, expiring 2031-08-10). No pre-existing certificate was revoked or replaced; direct-release selection/export remains pending.
+- **Apple Developer → Profiles** now lists `Clasp Mac App Store 2026`, an App Store profile for `R3Z7H2TRCB.com.robertmoore.personalnotepad` through 2027-08-24. Local validation bound its team, identifier prefix, bundle ID, entitlements, platform, expiry, and embedded application certificate to the exact Keychain identity.
 - **App Store Connect → Business** shows the Free Apps Agreement active. EU trader compliance is incomplete. The Paid Apps Agreement is new and unsigned; do not accept it unless the product will offer paid apps or in-app purchases and Robert approves the legal action.
 - **GitHub** has the approved public repository `https://github.com/RobertBMoore/clasp` with no license file. The local checkout uses it as `origin`, and commit `71c7ae55ef50e8908ce72bdb57ac2ebb862b08f0` is public with no untracked `artifacts/` data. Public CI run `https://github.com/RobertBMoore/clasp/actions/runs/32755060746` passed the local, App Store, direct-download, and release-contract boundaries in 5m 11s.
 - **GitHub branch protection** applies to `main`: pull requests are required, approvals are deliberately not required for the solo maintainer, branches must be current, `test-and-package-local` from GitHub Actions must pass, conversations must be resolved, and linear history is required. Force pushes and deletions remain disabled.
-- **GitHub release environments** `release` and `app-store-release` require reviewer `RobertBMoore`, disallow administrator bypass, allow self-review for the solo maintainer, and accept deployments only from protected branches. The direct environment has the public `CLASP_UPDATE_FEED_URL`; the Store environment has the non-secret protection acknowledgement, team/application-prefix assertions, and initial accepted-build assertion. Credential-backed identities, public keys, privacy URL, and secrets remain intentionally unset.
+- **GitHub release environments** `release` and `app-store-release` require reviewer `RobertBMoore`, disallow administrator bypass, allow self-review for the solo maintainer, and accept deployments only from protected branches. The direct environment has the public `CLASP_UPDATE_FEED_URL` and exact Developer ID identity label; the Store environment has the non-secret protection acknowledgement, team/application-prefix assertions, initial accepted-build assertion, and exact application/installer identity labels. P12/profile secrets, the privacy URL, direct public key, and direct credentials remain intentionally unset.
 
 The unauthenticated Sparkle feed requires this public repository. Do not generate Apple/Sparkle keys, accept legal agreements, choose trader/export-compliance answers, or submit the app for review without action-time confirmation.
 
 ## Required order of operations
 
 1. **Preserve the existing App Store Connect record** for Apple app ID `6804786714` and the exact registered Bundle ID. Revalidate its version/build state immediately before packaging or upload; keep the permanent SKU in authenticated account custody rather than public source.
-2. **Establish the required Apple identities and profile** after action-time approval for credential generation or import:
-   - For direct distribution, first recover/import the private key for one exact existing Developer ID Application certificate and bind the selected fingerprint to its custodian. If neither existing private key can be recovered, obtain explicit approval before attempting a new certificate; do not revoke or replace either existing identity implicitly.
-   - Apple Distribution / Mac App Distribution for the Store application.
-   - Mac Installer Distribution for the Store package.
-   - App Store provisioning profile for the exact Bundle ID and team.
+2. **Preserve and operationalize the required Apple identities and profile** after their approved 2026-08-24 creation:
+   - For direct distribution, select one of the two locally usable Developer ID Application identities and bind its exact fingerprint to the protected export and release record. Do not revoke or replace either identity implicitly.
+   - Preserve the Mac App Distribution and Mac Installer Distribution private keys outside source control; do not revoke or replace them implicitly.
+   - Preserve the exact Clasp App Store profile outside source control and rotate it deliberately before expiry.
+   - Export protected CI copies and add GitHub secrets only through an approved credential-custody step; never expose their bytes or passwords in logs or source.
 3. **Resolve Account Holder gates**: EU trader status, tax/banking if applicable, encryption export compliance for CryptoKit AES-GCM Vault data, age rating, content rights, and App Privacy. The Free Apps Agreement is already active.
 4. **Approve and publish real HTTPS pages** for Support, Privacy Policy, and monitored security contact. Replace every `TBD` and prove anonymous HTTPS reachability.
 5. **Maintain the protected GitHub boundary** already configured at `https://github.com/RobertBMoore/clasp`: every follow-up must use a pull request, pass `test-and-package-local`, remain current with `main`, resolve conversations, and preserve linear history. Never publish untracked `artifacts/` data or credentials. The repository intentionally has no license until Robert chooses one.
@@ -39,10 +39,10 @@ The unauthenticated Sparkle feed requires this public repository. Do not generat
 ## Direct-update publication order
 
 1. Preserve the configured `main` protection and `release` environment gates in the approved public GitHub repository.
-2. Recover/import the private key for one exact existing Developer ID certificate, or explicitly authorize a new identity if Apple permits it; record the selected fingerprint and custodian before adding protected secrets.
+2. Select one of the two locally usable Developer ID certificates; record its exact fingerprint and custodian before creating the protected export or adding secrets. Do not create, revoke, or replace a certificate implicitly.
 3. Generate a separate Sparkle EdDSA keypair; never reuse an Apple certificate key.
 4. Publish a real signed/notarized baseline N release and complete its acceptance.
 5. Build N+1 through `Direct release draft`, review the notarized draft and appcast, then publish manually.
 6. Require the post-publication acceptance workflow to pass and complete `DIRECT_UPDATE_ACCEPTANCE.md` on a clean Mac before directing users to the release.
 
-Until the Apple and GitHub authority gates above are complete, `/Applications/Clasp.app` remains the correct local installation, but it is not a distributable or App Store-submittable artifact.
+Until the remaining Apple, GitHub, compliance, signed-package, and acceptance gates above are complete, `/Applications/Clasp.app` remains the correct local installation, but it is not a distributable or App Store-submittable artifact.

@@ -18,9 +18,9 @@ Complete this record from the exact successful package workflow and App Store Co
 - Package-payload parity result:
 - Privacy policy URL embedded in the signed app:
 - Signing Team ID observed from the exact packaged artifact:
-- Mac App Distribution identity and SHA-256 fingerprint:
-- Mac Installer Distribution identity and SHA-256 fingerprint:
-- Provisioning profile UUID and expiry:
+- Mac App Distribution identity and SHA-256 fingerprint: `3rd Party Mac Developer Application: Paper LLC (R3Z7H2TRCB)` / `C7:1E:DE:4E:76:1A:DB:6E:3B:1F:8C:B3:EB:2C:81:7D:0D:EC:3E:3C:03:18:EE:C5:EC:84:68:60:4B:B0:AB:D7`, verified locally 2026-08-24
+- Mac Installer Distribution identity and SHA-256 fingerprint: `3rd Party Mac Developer Installer: Paper LLC (R3Z7H2TRCB)` / `D7:33:19:AA:7B:85:94:62:C3:B2:6E:6B:13:15:F8:D2:46:F6:FD:15:72:74:EC:CB:F8:C7:3A:02:93:F0:3D:9E`, verified locally 2026-08-24
+- Provisioning profile UUID and expiry: `25535586-40DF-4EE1-AA8F-D57F2CFBD210` / 2027-08-24 18:42:28 UTC; `Clasp Mac App Store 2026`, exact certificate/bundle/team validation passed locally 2026-08-24
 
 ## Upload and processing
 
