@@ -72,6 +72,12 @@ if grep -F 'if otool -L "$STORE_BIN" | grep' "$CI" >/dev/null \
 fi
 
 require_literal "$STORE" 'persist-credentials: false'
+for variable_name in \
+  CLASP_APP_STORE_APPLICATION_CERTIFICATE_SHA256 \
+  CLASP_APP_STORE_INSTALLER_CERTIFICATE_SHA256; do
+  [[ "$(grep -Fc "vars.$variable_name" "$STORE")" == 2 ]] \
+    || fail "$variable_name must be required by preflight and injected into packaging"
+done
 if grep -F 'CLASP_EPHEMERAL_KEYCHAIN_PASSWORD=' "$STORE" >/dev/null; then
   fail "the generated App Store keychain password must stay step-local"
 fi

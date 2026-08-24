@@ -18,6 +18,8 @@ TEAM_ID="${CLASP_APP_STORE_TEAM_ID:-}"
 APP_ID_PREFIX="${CLASP_APP_STORE_APP_ID_PREFIX:-}"
 APPLICATION_IDENTITY="${CLASP_APP_STORE_APPLICATION_IDENTITY:-}"
 INSTALLER_IDENTITY="${CLASP_APP_STORE_INSTALLER_IDENTITY:-}"
+APPLICATION_CERTIFICATE_SHA256="${CLASP_APP_STORE_APPLICATION_CERTIFICATE_SHA256:-}"
+INSTALLER_CERTIFICATE_SHA256="${CLASP_APP_STORE_INSTALLER_CERTIFICATE_SHA256:-}"
 OUTPUT_DIR="$ROOT_DIR/release-output/AppStore"
 while (($#)); do
   case "$1" in
@@ -28,6 +30,8 @@ while (($#)); do
     --app-id-prefix) APP_ID_PREFIX="$2"; shift 2 ;;
     --application-identity) APPLICATION_IDENTITY="$2"; shift 2 ;;
     --installer-identity) INSTALLER_IDENTITY="$2"; shift 2 ;;
+    --application-certificate-sha256) APPLICATION_CERTIFICATE_SHA256="$2"; shift 2 ;;
+    --installer-certificate-sha256) INSTALLER_CERTIFICATE_SHA256="$2"; shift 2 ;;
     --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
     *) app_store_die "unknown argument: $1" ;;
   esac
@@ -39,7 +43,7 @@ clasp_require_canonical_absolute_path "$OUTPUT_DIR" "App Store package output ro
 [[ "$OUTPUT_DIR" == "$ROOT_DIR/release-output/AppStore" ]] \
   || app_store_die "output directory must be exactly $ROOT_DIR/release-output/AppStore"
 clasp_prepare_channel_output_root "$ROOT_DIR" app-store
-app_store_require_identity installer "$INSTALLER_IDENTITY"
+app_store_require_identity_certificate installer "$INSTALLER_IDENTITY" "$INSTALLER_CERTIFICATE_SHA256"
 
 FINAL_APP="$OUTPUT_DIR/$CLASP_APP_NAME.app"
 FINAL_PACKAGE="$OUTPUT_DIR/$CLASP_APP_NAME-$VERSION-$BUILD_NUMBER-AppStore.pkg"
@@ -83,6 +87,7 @@ clasp_compile_no_replace_mover "$ROOT_DIR" "$NO_REPLACE_MOVER"
   --team-id "$TEAM_ID" \
   --app-id-prefix "$APP_ID_PREFIX" \
   --application-identity "$APPLICATION_IDENTITY" \
+  --application-certificate-sha256 "$APPLICATION_CERTIFICATE_SHA256" \
   --output "$APP" \
   --managed-output app-store-package
 
@@ -101,6 +106,8 @@ productbuild \
   --app-id-prefix "$APP_ID_PREFIX" \
   --application-identity "$APPLICATION_IDENTITY" \
   --installer-identity "$INSTALLER_IDENTITY" \
+  --application-certificate-sha256 "$APPLICATION_CERTIFICATE_SHA256" \
+  --installer-certificate-sha256 "$INSTALLER_CERTIFICATE_SHA256" \
   --version "$VERSION" \
   --build-number "$BUILD_NUMBER"
 

@@ -79,6 +79,8 @@ The manual `Mac App Store package` workflow runs only from the protected default
 - `CLASP_APP_STORE_APP_ID_PREFIX`: the 10-character application-identifier prefix from the exact provisioning profile.
 - `CLASP_APP_STORE_APPLICATION_IDENTITY`: the exact Mac App Store application-signing identity label available in the imported P12.
 - `CLASP_APP_STORE_INSTALLER_IDENTITY`: the exact Mac App Store installer-signing identity label available in the imported P12.
+- `CLASP_APP_STORE_APPLICATION_CERTIFICATE_SHA256`: the exact 64-character SHA-256 fingerprint for the application certificate in the profile and signed app.
+- `CLASP_APP_STORE_INSTALLER_CERTIFICATE_SHA256`: the exact 64-character SHA-256 fingerprint for the installer certificate embedded in the package signature.
 - `CLASP_PRIVACY_POLICY_URL`: the final public HTTPS policy URL embedded into the signed app and exposed in Help. The protected workflow rejects reserved/local hosts and requires an anonymous successful HTTPS response before packaging.
 - `CLASP_APP_STORE_LAST_ACCEPTED_BUILD_NUMBER`: `0` before the first accepted build, then the highest build processed by App Store Connect. The requested build must be greater. This is an operator-maintained assertion, not a live App Store Connect query; reconcile it with the processed-build record and submission handoff before every run.
 
