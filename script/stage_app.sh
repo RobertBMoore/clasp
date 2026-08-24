@@ -179,6 +179,10 @@ if [[ "$CHANNEL" == direct ]]; then
 elif [[ "$CHANNEL" == app-store ]]; then
   cp "$ROOT_DIR/release/AppStore/container-migration.plist" "$APP/Contents/Resources/container-migration.plist"
   cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
+  # Provisioning profiles are commonly exported with mode 0600. PackageKit
+  # installs app payloads as root, so the embedded copy must be readable by
+  # ordinary users for macOS to verify the app signature at launch.
+  chmod 0644 "$APP/Contents/embedded.provisionprofile"
   # Clear removable download metadata before signing and packaging. macOS 26
   # can retain OS-managed macl/provenance attributes even when xattr -c exits
   # successfully, so fail closed if anything outside that allowlist remains.

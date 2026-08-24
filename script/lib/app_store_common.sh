@@ -111,6 +111,22 @@ app_store_clear_profile_download_xattrs() {
   }
 }
 
+app_store_require_non_root_readable_bundle() {
+  local app="$1" unreadable_file untraversable_directory
+  [[ -d "$app" && ! -L "$app" ]] \
+    || app_store_die "App Store bundle permission check requires a physical app directory"
+
+  unreadable_file="$(find "$app" -type f ! -perm -004 -print -quit)" \
+    || app_store_die "could not inspect App Store bundle file permissions"
+  [[ -z "$unreadable_file" ]] \
+    || app_store_die "App Store bundle contains a file unreadable after root-owned installation: $unreadable_file"
+
+  untraversable_directory="$(find "$app" -type d ! -perm -001 -print -quit)" \
+    || app_store_die "could not inspect App Store bundle directory permissions"
+  [[ -z "$untraversable_directory" ]] \
+    || app_store_die "App Store bundle contains a directory inaccessible after root-owned installation: $untraversable_directory"
+}
+
 app_store_validate_package_signature_details() {
   local details="$1" identity="$2" expected_sha256="$3"
   local status_count chain_count leaf_count leaf_block fingerprint_count
