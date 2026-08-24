@@ -79,4 +79,8 @@ There is no recovery service or backdoor. Losing the recovery key makes that exp
 
 ## Reporting and operational guidance
 
-Clasp does not yet have a hosted public security-reporting endpoint. Before any public distribution, the final Support URL and monitored contact must provide a clear route for vulnerability reports; until that release gate is closed, this file must not be read as offering a public reporting channel. If suspicious corruption is detected, keep the encrypted files, stop editing the Vault, and restore from a known-good encrypted export. Do not share Vault files together with their recovery keys.
+Report suspected vulnerabilities through GitHub's [private vulnerability reporting form](https://github.com/RobertBMoore/clasp/security/advisories/new). Do not disclose a suspected vulnerability in a public GitHub issue. If the private form is unavailable, email Paper LLC at [hello@paper.ai](mailto:hello@paper.ai) with the subject `Clasp security report`.
+
+Include the Clasp version and build, macOS version, affected feature, reproduction steps, observed result, and expected result when it is safe to do so. Never send note bodies, credentials, encryption keys, recovery keys, or an encrypted Vault export together with its recovery key. Ordinary support, feedback, and feature requests belong on the [Clasp Support page](https://robertbmoore.github.io/clasp/).
+
+If suspicious corruption is detected, keep the encrypted files, stop editing the Vault, and restore from a known-good encrypted export. Do not share Vault files together with their recovery keys.

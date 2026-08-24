@@ -1,4 +1,6 @@
-# Clasp privacy policy draft
+# Superseded Clasp privacy policy draft
+
+This historical draft is superseded by the canonical, publication-ready source at [`docs/privacy.md`](../../docs/privacy.md). Do not publish or submit this file as Clasp's privacy policy.
 
 Effective date: **TBD**
 Public contact: **TBD**

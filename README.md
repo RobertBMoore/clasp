@@ -34,6 +34,12 @@ Additional modes:
 
 Direct GitHub releases and Mac App Store builds use separate, credential-gated pipelines documented in [`release/README.md`](release/README.md). Direct builds can use Sparkle for signed in-app updates; App Store builds never include Sparkle and update through the App Store.
 
+## Support and privacy
+
+Paper LLC publishes Clasp. The public support contact is [hello@paper.ai](mailto:hello@paper.ai). The source for the [Support page](docs/index.md) and [Privacy Policy](docs/privacy.md) lives in `docs/`; their canonical GitHub Pages URLs are `https://robertbmoore.github.io/clasp/` and `https://robertbmoore.github.io/clasp/privacy.html`.
+
+Public GitHub Issues are available for ordinary bugs and feature requests, but never post note bodies, Vault files, recovery keys, credentials, clipboard contents, or other sensitive data. Report suspected vulnerabilities through GitHub's [private vulnerability reporting form](https://github.com/RobertBMoore/clasp/security/advisories/new), with [SECURITY.md](SECURITY.md) as the complete reporting and product-security guide.
+
 ## The easy way to remember Clasp
 
 - **Option-Space** opens Quick Capture from anywhere. This is the only shortcut most people need.
