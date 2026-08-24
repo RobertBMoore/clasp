@@ -2,7 +2,8 @@
 
 This copy is a draft for Robert's final approval.
 
-- Name: **Clasp**
+- App Store product name: **Clasp: Private Markdown Notes**
+- Installed app name: **Clasp**
 - Subtitle (30-character limit): **Catch notes. Keep them close.**
 - Primary category: **Productivity**
 - Support URL: **TBD — real public HTTPS support/contact page required**

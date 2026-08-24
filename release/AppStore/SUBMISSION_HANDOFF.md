@@ -9,7 +9,7 @@ Complete this record from the exact successful package workflow and App Store Co
 - GitHub workflow run URL:
 - Registered explicit Bundle ID / Apple identifier record: `Clasp` / `com.robertmoore.personalnotepad`, Paper LLC team `R3Z7H2TRCB`, verified live 2026-08-24
 - Expected Apple Developer Team ID from the account record (not artifact evidence): `R3Z7H2TRCB`
-- App Store Connect app record ID and SKU (keep private where appropriate):
+- App Store Connect app record: `Clasp: Private Markdown Notes`, macOS 1.0, Apple app ID `6804786714`, `Prepare for Submission`, verified live 2026-08-24. The permanent SKU was verified in the authenticated account and is intentionally withheld from this public repository.
 - Version (`CFBundleShortVersionString`):
 - Build (`CFBundleVersion`):
 - Last accepted build-number assertion, App Store Connect source, and checked date/time:
@@ -27,7 +27,7 @@ Complete this record from the exact successful package workflow and App Store Co
 - Upload tool and version (Transporter, Xcode, or `altool`):
 - Upload date/time and operator:
 - Delivery/upload ID:
-- App Store Connect app ID:
+- App Store Connect app ID: `6804786714`
 - Bundle ID:
 - App version record:
 - Build processing result and date/time:
