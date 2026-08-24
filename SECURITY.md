@@ -57,7 +57,7 @@ This cannot erase copies already retained by a clipboard manager or another proc
 
 ## Selection-shortcut permission (local/direct builds only)
 
-The global `Control-Option-N` and `Control-Option-P` shortcuts in local/direct builds need macOS Accessibility approval because Clasp posts one `Command-C` event to the frontmost app when a shortcut is pressed. Clasp does not install an event tap, listen to keystrokes, or monitor selection changes. The Mac App Store build compiles this implementation out and uses Services only.
+The global `Control-Option-Shift-N` and `Control-Option-Shift-P` shortcuts in local/direct builds need macOS Accessibility approval because Clasp posts one `Command-C` event to the frontmost app when a shortcut is pressed. Clasp does not install an event tap, listen to keystrokes, or monitor selection changes. The Mac App Store build compiles this implementation out and uses Services only.
 
 Before issuing Copy, Clasp attempts a bounded, complete snapshot of the available pasteboard items and types. If complete preservation exceeds its item, type, per-value, per-item, or aggregate byte budgets—or any value cannot be copied—the selection shortcut fails closed before issuing Copy. After a complete snapshot, Clasp reads the new selected text, link, styled text, or image once and restores the old clipboard only if the pasteboard still contains the shortcut-generated copy. If another copy occurs during capture, Clasp leaves that newer clipboard untouched. A clipboard manager may still retain the brief copied selection.
 

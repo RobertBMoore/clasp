@@ -31,7 +31,7 @@ Highlights:
 - Full-text search over unlocked content
 - Clipboard and selected-content capture
 - Native Mac menus, shortcuts, Services, and appearance
-- No accounts, ads, analytics, cloud sync, or AI APIs
+- No accounts, ads, analytics, cloud sync, or external AI services; image text recognition uses Apple Vision locally
 
 Clasp cannot protect an already-unlocked Mac from malware or someone controlling the session. Credentials and recovery codes are still best kept in a dedicated password manager.
 

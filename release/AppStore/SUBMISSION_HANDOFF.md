@@ -7,7 +7,8 @@ Complete this record from the exact successful package workflow and App Store Co
 - Source commit SHA:
 - Protected branch:
 - GitHub workflow run URL:
-- Registered explicit Bundle ID / Apple identifier record:
+- Registered explicit Bundle ID / Apple identifier record: `Clasp` / `com.robertmoore.personalnotepad`, Paper LLC team `R3Z7H2TRCB`, verified live 2026-08-24
+- Expected Apple Developer Team ID from the account record (not artifact evidence): `R3Z7H2TRCB`
 - App Store Connect app record ID and SKU (keep private where appropriate):
 - Version (`CFBundleShortVersionString`):
 - Build (`CFBundleVersion`):
@@ -16,7 +17,7 @@ Complete this record from the exact successful package workflow and App Store Co
 - Package SHA-256:
 - Package-payload parity result:
 - Privacy policy URL embedded in the signed app:
-- Signing Team ID:
+- Signing Team ID observed from the exact packaged artifact:
 - Mac App Distribution identity and SHA-256 fingerprint:
 - Mac Installer Distribution identity and SHA-256 fingerprint:
 - Provisioning profile UUID and expiry:

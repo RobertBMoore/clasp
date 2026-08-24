@@ -1,44 +1,43 @@
 # Clasp external release handoff
 
 Observed: **2026-08-24**
-Status: **local product ready; external identities, records, and publication remain fail-closed**
+Status: **local product ready; Bundle ID and public GitHub repository created; remaining external identities, app record, compliance, and release publication remain fail-closed**
 
 This guide starts where the verified local build and repository release scaffolding stop. It does not authorize accepting agreements, choosing legal/compliance answers, generating credentials, publishing source, uploading binaries, or submitting for review without Robert at the relevant gate.
 
-## Chrome is staged at the live gates
+## Live Apple state
 
-- **App Store Connect → Apps** is authenticated and currently shows **No Apps**. Apple also displays the EU trader-status requirement.
-- **Apple Developer → Identifiers** is open at the Apple sign-in screen for the exact Bundle ID registration step.
-- **Apple Developer → Certificates** is open at the Apple sign-in screen for the distribution-identity step.
-- **GitHub → New repository** is authenticated as Robert’s GitHub account. The form currently defaults to a public repository, but no repository name, description, license, visibility choice, or create action has been entered.
+- **App Store Connect → Apps** is authenticated as Robert Moore for Paper LLC and still shows **No Apps**. The exact New App form is prepared for Clasp, but the create action is waiting for action-time confirmation because the company name will be public and the app record is persistent.
+- **Apple Developer → Identifiers** lists `Clasp` / `com.robertmoore.personalnotepad` under Paper LLC team `R3Z7H2TRCB`; this identifier was registered on 2026-08-24 with no optional capability selected. Apple's default In-App Purchase capability remains present.
+- **Apple Developer → Certificates** lists two valid Developer ID Application certificates for direct distribution and one development certificate. It does not list an Apple Distribution / Mac App Distribution or Mac Installer Distribution certificate. The local keychain has zero valid code-signing identities, so the server-side certificate rows do not prove private-key custody.
+- **Apple Developer → Profiles** lists only DRG Agent Relay / Bridge profiles; no Clasp App Store profile exists.
+- **App Store Connect → Business** shows the Free Apps Agreement active. EU trader compliance is incomplete. The Paid Apps Agreement is new and unsigned; do not accept it unless the product will offer paid apps or in-app purchases and Robert approves the legal action.
+- **GitHub** now has the approved public repository `https://github.com/RobertBMoore/clasp` with no license file. The local checkout uses it as `origin`; source push, branch protection, release environments, variables, and secrets must still be verified from the exact published commit.
 
-The Apple Developer session must be completed by Robert. Do not use App Store Connect’s **New App** action until `com.robertmoore.personalnotepad` exists in the intended Apple Developer team. Do not click GitHub’s **Create repository** action until Robert explicitly approves making this source public, chooses the repository name, and chooses a license policy. The unauthenticated Sparkle feed requires a public repository.
+The unauthenticated Sparkle feed requires this public repository. Do not generate Apple/Sparkle keys, accept legal agreements, choose trader/export-compliance answers, or submit the app for review without action-time confirmation.
 
 ## Required order of operations
 
-1. **Authenticate Apple Developer** in the two prepared Chrome tabs.
-2. **Verify the intended team and authority** before creating anything. Record the Team ID privately.
-3. **Register the explicit Bundle ID** `com.robertmoore.personalnotepad`. Do not select or repurpose an unrelated identifier.
-4. **Create the required Apple identities and profile**:
-   - Developer ID Application for the direct-download channel.
+1. **Create the App Store Connect macOS app record** from the already-registered exact Bundle ID after Robert confirms the public company name and persistent record fields. Record the Apple app ID and SKU privately.
+2. **Establish the required Apple identities and profile** after action-time approval for credential generation or import:
+   - For direct distribution, first recover/import the private key for one exact existing Developer ID Application certificate and bind the selected fingerprint to its custodian. If neither existing private key can be recovered, obtain explicit approval before attempting a new certificate; do not revoke or replace either existing identity implicitly.
    - Apple Distribution / Mac App Distribution for the Store application.
    - Mac Installer Distribution for the Store package.
    - App Store provisioning profile for the exact Bundle ID and team.
-5. **Return to App Store Connect** and create the macOS app record only after the Bundle ID is selectable. Record the Apple app ID and SKU privately.
-6. **Resolve Account Holder gates**: current agreements, EU trader status, tax/banking if applicable, encryption export compliance for CryptoKit AES-GCM Vault data, age rating, content rights, and App Privacy.
-7. **Approve and publish real HTTPS pages** for Support, Privacy Policy, and monitored security contact. Replace every `TBD` and prove anonymous HTTPS reachability.
-8. **Decide GitHub publication**: public-source approval, repository name, description, and license. Then create the repository, add its exact URL as `origin`, and push protected `main`.
-9. **Configure protected GitHub environments** from `release/README.md`, including required reviewers, release variables, and secrets. Never paste private keys or P12 contents into source, issues, logs, screenshots, or this handoff.
-10. **Produce the signed Store package** with the manual `Mac App Store package` workflow and complete `AppStore/SUBMISSION_HANDOFF.md` from its exact run and checksum.
-11. **Upload the finished package** using Xcode, Transporter, or Apple’s supported command-line uploader. Chrome is for the app record, metadata, compliance, processed-build selection, and review submission—not binary transport.
-12. **Run signed-sandbox acceptance** on a disposable environment with synthetic data, then complete `AppStore/MIGRATION_ACCEPTANCE.md`.
-13. **Compare the screenshot candidates** in `AppStore/Screenshots/` with the exact signed Store build, recapture any drift, validate them, and have Robert approve their ordering and copy.
-14. **Submit only after every readiness and custody field is complete** and Robert gives final human approval at the review action.
+3. **Resolve Account Holder gates**: EU trader status, tax/banking if applicable, encryption export compliance for CryptoKit AES-GCM Vault data, age rating, content rights, and App Privacy. The Free Apps Agreement is already active.
+4. **Approve and publish real HTTPS pages** for Support, Privacy Policy, and monitored security contact. Replace every `TBD` and prove anonymous HTTPS reachability.
+5. **Push and protect GitHub**: push the verified commit to `https://github.com/RobertBMoore/clasp`, protect `main`, and confirm the public repository contains no untracked `artifacts/` data or credentials. The repository intentionally has no license until Robert chooses one.
+6. **Configure protected GitHub environments** from `release/README.md`, including required reviewers, release variables, and secrets. Never paste private keys or P12 contents into source, issues, logs, screenshots, or this handoff.
+7. **Produce the signed Store package** with the manual `Mac App Store package` workflow and complete `AppStore/SUBMISSION_HANDOFF.md` from its exact run and checksum.
+8. **Upload the finished package** using Xcode, Transporter, or Apple’s supported command-line uploader. Chrome is for the app record, metadata, compliance, processed-build selection, and review submission—not binary transport.
+9. **Run signed-sandbox acceptance** on a disposable environment with synthetic data, then complete `AppStore/MIGRATION_ACCEPTANCE.md`.
+10. **Compare the screenshot candidates** in `AppStore/Screenshots/` with the exact signed Store build, recapture any drift, validate them, and have Robert approve their ordering and copy.
+11. **Submit only after every readiness and custody field is complete** and Robert gives final human approval at the review action.
 
 ## Direct-update publication order
 
-1. Create and protect the approved public GitHub repository and `release` environment.
-2. Import the Developer ID and notarization credentials only through protected secrets.
+1. Protect `main` in the approved public GitHub repository and configure the `release` environment.
+2. Recover/import the private key for one exact existing Developer ID certificate, or explicitly authorize a new identity if Apple permits it; record the selected fingerprint and custodian before adding protected secrets.
 3. Generate a separate Sparkle EdDSA keypair; never reuse an Apple certificate key.
 4. Publish a real signed/notarized baseline N release and complete its acceptance.
 5. Build N+1 through `Direct release draft`, review the notarized draft and appcast, then publish manually.

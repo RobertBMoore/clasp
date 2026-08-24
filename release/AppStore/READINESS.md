@@ -4,10 +4,11 @@ Status: **not ready to upload or submit**. This is a custody checklist, not Appl
 
 ## Build and account gates
 
-- [ ] Robert confirms active Apple Developer Program membership and accepts current agreements.
-- [ ] Register the explicit App ID / Bundle ID `com.robertmoore.personalnotepad` in the correct Apple Developer team; do not select an unrelated existing identifier.
+- [x] Verify live access to the Apple Developer Program team and the App Store Connect account. On 2026-08-24, Chrome showed Paper LLC team `R3Z7H2TRCB` and an active Free Apps Agreement. EU trader compliance remains incomplete; the Paid Apps Agreement remains unsigned and is not required for a free app with no paid content.
+- [ ] Revalidate active membership, Account Holder/Admin authority, current agreements, and exact team immediately before generating credentials, packaging, or uploading; the dated browser observation above is not standing authorization or fresh release evidence.
+- [x] Register the explicit App ID / Bundle ID `com.robertmoore.personalnotepad` in the correct Apple Developer team; Apple Developer now lists it as `Clasp` under Paper LLC team `R3Z7H2TRCB`.
 - [ ] Create the App Store Connect macOS app record using that exact registered Bundle ID; record the real Team ID, Apple app ID, and SKU privately.
-- [ ] Install valid Mac App Distribution and Mac Installer Distribution identities and an App Store provisioning profile.
+- [ ] Install valid Apple Distribution / Mac App Distribution and Mac Installer Distribution identities and an App Store provisioning profile. Apple Developer currently lists two valid Developer ID Application certificates for direct distribution, but no Store distribution/installer certificate or Clasp profile; the local keychain still has no valid code-signing identity.
 - [x] Enforce the deliberate Apple-silicon `arm64` architecture policy in local, direct, Store, CI, and artifact validation paths. Intel support is outside 1.0 until a universal build receives real Intel acceptance testing.
 - [x] Compile and test every production source boundary from clean isolated scratch paths: 185/185 local tests, 179/179 Store tests, and 185/185 direct-distribution tests pass with zero failures. The Store binary is `arm64`; Sparkle, Accessibility/CGEvent capture symbols, and external Store dependencies are absent. These are source/product proofs only, not evidence of an Apple-signed package, App Store Connect upload, processing, or acceptance.
 - [ ] Sign the final Store app with `release/Clasp.app-store.entitlements` and prove `com.apple.security.app-sandbox=true` on the distribution artifact.

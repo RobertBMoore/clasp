@@ -2,7 +2,7 @@
 
 Clasp is a local-first macOS app for catching text, links, prompts, phone-call notes, journal entries, and clipboard snippets before they slip away. Regular notes are portable Markdown files. Sensitive notes can be placed in a separately encrypted Vault.
 
-Clasp has no accounts, analytics, cloud sync, AI APIs, or content transmission. Ordinary local and Mac App Store builds have no third-party runtime dependency or network client. The separate direct-download release uses exact-pinned Sparkle only to retrieve signed software updates from its configured GitHub feed.
+Clasp has no accounts, analytics, cloud sync, external AI services, or note-content transmission. Apple Vision performs image text recognition locally. Ordinary local and Mac App Store builds have no third-party runtime dependency or network client. The separate direct-download release uses exact-pinned Sparkle only to retrieve signed software updates from its configured GitHub feed.
 
 ## Requirements
 
