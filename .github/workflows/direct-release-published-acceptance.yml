@@ -3,6 +3,20 @@ name: Published direct release acceptance
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Exact published release tag to recover (for example v1.0.0)
+        required: true
+      release_id:
+        description: Exact numeric GitHub release ID approved for recovery
+        required: true
+      source_sha:
+        description: Exact 40-character commit SHA resolved by the approved tag
+        required: true
+      archive_sha256:
+        description: Approved SHA-256 for the published Clasp archive
+        required: true
 
 permissions:
   contents: read
@@ -14,14 +28,15 @@ concurrency:
 
 jobs:
   verify-public-release:
-    if: ${{ !github.event.release.prerelease }}
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
     runs-on: macos-26
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          # The release tag is untrusted input. Run the acceptance verifier from
-          # the immutable protected-default-branch commit that supplied this workflow.
+          # A release event runs the workflow version at its tagged source. Pin
+          # that exact workflow SHA, then prove below that both it and the release
+          # source remain ancestors of the protected default branch.
           ref: ${{ github.workflow_sha }}
           fetch-depth: 0
           persist-credentials: false
@@ -33,9 +48,12 @@ jobs:
           # variables use distinct names and must exactly mirror the protected
           # release-environment pins. Distinct names prevent repository values
           # from shadowing environment values in the draft workflow.
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-          EVENT_TAG_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+          RELEASE_ID: ${{ github.event.release.id || inputs.release_id }}
+          APPROVED_ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+          EXPECTED_TAG_SHA: ${{ github.event_name == 'release' && github.sha || inputs.source_sha }}
           TRUSTED_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          TRIGGER_REF: ${{ github.ref }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
           UPDATE_FEED_URL: ${{ vars.CLASP_PUBLISHED_UPDATE_FEED_URL }}
@@ -47,6 +65,7 @@ jobs:
           set -euo pipefail
           [[ "$REPOSITORY_VISIBILITY" == public ]]
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
           [[ "$UPDATE_FEED_URL" == "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml" ]]
           [[ -n "$SPARKLE_PUBLIC_KEY" ]]
           source trusted-source/script/lib/direct_signing.sh
@@ -54,8 +73,26 @@ jobs:
           clasp_direct_is_valid_sha256 "$DEVELOPER_ID_CERTIFICATE_SHA256"
           DEVELOPER_ID_CERTIFICATE_SHA256="$(clasp_direct_uppercase_sha256 \
             "$DEVELOPER_ID_CERTIFICATE_SHA256")"
-          [[ "$EVENT_TAG_SHA" =~ ^[0-9a-f]{40}$ && "$TRUSTED_WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_TAG_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TRUSTED_WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git -C trusted-source rev-parse HEAD)" == "$TRUSTED_WORKFLOW_SHA" ]]
+
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            [[ "$TRIGGER_REF" == "refs/heads/$DEFAULT_BRANCH" ]]
+            clasp_direct_is_valid_sha256 "$APPROVED_ARCHIVE_SHA256"
+            APPROVED_ARCHIVE_SHA256="$(clasp_direct_uppercase_sha256 \
+              "$APPROVED_ARCHIVE_SHA256")"
+          else
+            [[ -z "$APPROVED_ARCHIVE_SHA256" ]]
+          fi
+
+          RELEASE_JSON="$RUNNER_TEMP/published-release.json"
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > "$RELEASE_JSON"
+          [[ "$(jq -r '.id | tostring' "$RELEASE_JSON")" == "$RELEASE_ID" ]]
+          [[ "$(jq -r .tag_name "$RELEASE_JSON")" == "$RELEASE_TAG" ]]
+          [[ "$(jq -r .draft "$RELEASE_JSON")" == false ]]
+          [[ "$(jq -r .prerelease "$RELEASE_JSON")" == false ]]
+          [[ "$(jq '.assets | length' "$RELEASE_JSON")" == 3 ]]
 
           ENCODED_DEFAULT_BRANCH="$(jq -rn --arg value "$DEFAULT_BRANCH" '$value | @uri')"
           [[ "$(gh api "repos/$GITHUB_REPOSITORY/branches/$ENCODED_DEFAULT_BRANCH" --jq '.protected')" == true ]]
@@ -63,7 +100,7 @@ jobs:
           git -C trusted-source fetch origin \
             "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
           TAG_SHA="$(git -C trusted-source rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")"
-          [[ "$TAG_SHA" == "$EVENT_TAG_SHA" ]]
+          [[ "$TAG_SHA" == "$EXPECTED_TAG_SHA" ]]
           git -C trusted-source merge-base --is-ancestor \
             "$TAG_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"
           git -C trusted-source merge-base --is-ancestor \
@@ -72,6 +109,7 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           mkdir -p release-output
           gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
             --pattern 'Clasp-*.zip' \
             --pattern 'Clasp-*.zip.sha256' \
             --pattern appcast.xml \
@@ -87,6 +125,17 @@ jobs:
           [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]{0,17}$ ]]
           ARCHIVE="release-output/Clasp-$VERSION-$BUILD_NUMBER.zip"
           [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]]
+          ARCHIVE_SHA256="$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')"
+          ARCHIVE_NAME="${ARCHIVE##*/}"
+          jq -e --arg archive "$ARCHIVE_NAME" \
+            '([.assets[].name] | sort) == (["appcast.xml", $archive, ($archive + ".sha256")] | sort)' \
+            "$RELEASE_JSON" >/dev/null
+          [[ "$(jq -r --arg archive "$ARCHIVE_NAME" \
+            '.assets[] | select(.name == $archive) | .digest' "$RELEASE_JSON")" == \
+            "sha256:$ARCHIVE_SHA256" ]]
+          if [[ -n "$APPROVED_ARCHIVE_SHA256" ]]; then
+            [[ "$(clasp_direct_uppercase_sha256 "$ARCHIVE_SHA256")" == "$APPROVED_ARCHIVE_SHA256" ]]
+          fi
           PUBLIC_ARCHIVE_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/${ARCHIVE##*/}"
           PUBLIC_CHECKSUM_URL="$PUBLIC_ARCHIVE_URL.sha256"
           curl --fail --silent --show-error --location \
@@ -110,18 +159,20 @@ jobs:
           jq -n \
             --arg repository "$GITHUB_REPOSITORY" \
             --arg tag "$RELEASE_TAG" \
+            --arg release_id "$RELEASE_ID" \
+            --arg acceptance_trigger "$GITHUB_EVENT_NAME" \
             --arg source_sha "$TAG_SHA" \
             --arg verifier_sha "$TRUSTED_WORKFLOW_SHA" \
             --arg developer_id_application_certificate_sha256 "$DEVELOPER_ID_CERTIFICATE_SHA256" \
             --arg public_archive_url "$PUBLIC_ARCHIVE_URL" \
-            --arg archive_sha256 "$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')" \
+            --arg archive_sha256 "$ARCHIVE_SHA256" \
             --arg appcast_sha256 "$(shasum -a 256 release-output/appcast.xml | awk '{print $1}')" \
-            '{repository:$repository,tag:$tag,source_sha:$source_sha,verifier_sha:$verifier_sha,developer_id_application_certificate_sha256:$developer_id_application_certificate_sha256,public_archive_url:$public_archive_url,archive_sha256:$archive_sha256,appcast_sha256:$appcast_sha256}' \
+            '{repository:$repository,tag:$tag,release_id:$release_id,acceptance_trigger:$acceptance_trigger,source_sha:$source_sha,verifier_sha:$verifier_sha,developer_id_application_certificate_sha256:$developer_id_application_certificate_sha256,public_archive_url:$public_archive_url,archive_sha256:$archive_sha256,appcast_sha256:$appcast_sha256}' \
             > published-release-acceptance.json
       - name: Preserve the public-release acceptance receipt
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ${{ github.event.release.tag_name }}-published-acceptance
+          name: ${{ github.event.release.tag_name || inputs.release_tag }}-published-acceptance
           path: published-release-acceptance.json
           if-no-files-found: error
           retention-days: 90

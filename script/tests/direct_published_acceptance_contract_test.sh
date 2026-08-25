@@ -25,15 +25,31 @@ if grep -Eq '^[[:space:]]+environment:' "$WORKFLOW"; then
 fi
 
 if grep -F 'ref: ${{ github.event.release.tag_name }}' "$WORKFLOW" >/dev/null; then
-  echo "published-release verifier must never execute from the release tag" >&2
+  echo "published-release verifier must pin the event workflow SHA, not a mutable textual tag ref" >&2
   exit 1
 fi
 
 require_literal 'ref: ${{ github.workflow_sha }}'
+require_literal 'workflow_dispatch:'
+require_literal 'release_id:'
+require_literal 'source_sha:'
+require_literal 'archive_sha256:'
 require_literal 'cancel-in-progress: false'
 require_literal 'queue: max'
 require_literal 'persist-credentials: false'
 require_literal 'path: trusted-source'
+require_literal 'gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"'
+require_literal '[[ "$(jq -r '\''.id | tostring'\'' "$RELEASE_JSON")" == "$RELEASE_ID" ]]'
+require_literal '[[ "$(jq -r .tag_name "$RELEASE_JSON")" == "$RELEASE_TAG" ]]'
+require_literal '[[ "$(jq -r .draft "$RELEASE_JSON")" == false ]]'
+require_literal '[[ "$(jq -r .prerelease "$RELEASE_JSON")" == false ]]'
+require_literal ".assets | length"
+require_literal '[[ "$TRIGGER_REF" == "refs/heads/$DEFAULT_BRANCH" ]]'
+require_literal '[[ "$TAG_SHA" == "$EXPECTED_TAG_SHA" ]]'
+require_literal '--repo "$GITHUB_REPOSITORY"'
+require_literal '([.assets[].name] | sort) == (["appcast.xml", $archive, ($archive + ".sha256")] | sort)'
+require_literal '"sha256:$ARCHIVE_SHA256"'
+require_literal '[[ "$(clasp_direct_uppercase_sha256 "$ARCHIVE_SHA256")" == "$APPROVED_ARCHIVE_SHA256" ]]'
 require_literal "--jq '.protected'"
 require_literal 'git -C trusted-source merge-base --is-ancestor'
 require_literal './trusted-source/script/verify_direct_release.sh'
