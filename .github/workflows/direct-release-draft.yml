@@ -35,41 +35,62 @@ jobs:
           DEVELOPER_IDENTITY: ${{ vars.DEVELOPER_ID_APPLICATION_IDENTITY }}
           DEVELOPER_ID_CERTIFICATE_SHA256: ${{ vars.DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256 }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          REF_NAME: ${{ github.ref_name }}
+          TRIGGER_REF: ${{ github.ref }}
           REF_PROTECTED: ${{ github.ref_protected }}
           REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          [[ "$REF_NAME" == "$DEFAULT_BRANCH" ]]
-          [[ "$REF_PROTECTED" == true ]]
-          [[ "$REPOSITORY_VISIBILITY" == public ]]
-          [[ "$RAW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          [[ "$RAW_BUILD_NUMBER" =~ ^[1-9][0-9]{0,17}$ ]]
-          [[ "$UPDATE_FEED_URL" == "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml" ]]
-          [[ -n "$PUBLIC_KEY" ]]
+          [[ "$TRIGGER_REF" == "refs/heads/$DEFAULT_BRANCH" ]] \
+            || { echo "direct release must run from the default branch" >&2; exit 1; }
+          [[ "$REF_PROTECTED" == true ]] \
+            || { echo "direct release requires a protected ref" >&2; exit 1; }
+          [[ "$REPOSITORY_VISIBILITY" == public ]] \
+            || { echo "direct release requires a public repository" >&2; exit 1; }
+          [[ "$RAW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+            || { echo "direct release version is invalid" >&2; exit 1; }
+          [[ "$RAW_BUILD_NUMBER" =~ ^[1-9][0-9]{0,17}$ ]] \
+            || { echo "direct release build number is invalid" >&2; exit 1; }
+          [[ "$UPDATE_FEED_URL" == "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml" ]] \
+            || { echo "direct release update-feed URL is invalid" >&2; exit 1; }
+          [[ -n "$PUBLIC_KEY" ]] \
+            || { echo "Sparkle public key is missing" >&2; exit 1; }
           source script/lib/direct_signing.sh
           clasp_direct_is_valid_identity "$DEVELOPER_IDENTITY"
           clasp_direct_is_valid_sha256 "$DEVELOPER_ID_CERTIFICATE_SHA256"
           git fetch --force --tags origin
-          [[ "$(git rev-list -n 1 "v$RAW_VERSION")" == "$(git rev-parse HEAD)" ]]
+          [[ "$(git rev-list -n 1 "v$RAW_VERSION")" == "$(git rev-parse HEAD)" ]] \
+            || { echo "direct release tag must resolve to the workflow source commit" >&2; exit 1; }
 
           LATEST_JSON="$RUNNER_TEMP/latest-release.json"
           LATEST_ERROR="$RUNNER_TEMP/latest-release.error"
           if gh api "repos/$GITHUB_REPOSITORY/releases/latest" >"$LATEST_JSON" 2>"$LATEST_ERROR"; then
-            curl --fail --silent --show-error --location "$UPDATE_FEED_URL" \
+            curl --fail --silent --show-error --location \
+              --proto '=https' --proto-redir '=https' "$UPDATE_FEED_URL" \
               --output "$RUNNER_TEMP/latest-appcast.xml"
-            LATEST_BUILD="$(xmllint --xpath \
-              'string(/*[local-name()="rss"]/*[local-name()="channel"]/*[local-name()="item"][1]/*[local-name()="enclosure"]/@*[local-name()="version"])' \
+            if grep -E '<![[:space:]]*(DOCTYPE|ENTITY)' "$RUNNER_TEMP/latest-appcast.xml" >/dev/null; then
+              echo "latest appcast contains a forbidden XML declaration" >&2
+              exit 1
+            fi
+            LATEST_BUILD_COUNT="$(xmllint --nonet --xpath \
+              'string(count(/rss/channel/item[1]/*[local-name()="version" and namespace-uri()="http://www.andymatuschak.org/xml-namespaces/sparkle"]))' \
               "$RUNNER_TEMP/latest-appcast.xml")"
-            [[ "$LATEST_BUILD" =~ ^[1-9][0-9]{0,17}$ ]]
-            ((10#$RAW_BUILD_NUMBER > 10#$LATEST_BUILD))
+            [[ "$LATEST_BUILD_COUNT" == 1 ]] \
+              || { echo "latest appcast must contain exactly one Sparkle build number" >&2; exit 1; }
+            LATEST_BUILD="$(xmllint --nonet --xpath \
+              'string((/rss/channel/item[1]/*[local-name()="version" and namespace-uri()="http://www.andymatuschak.org/xml-namespaces/sparkle"])[1])' \
+              "$RUNNER_TEMP/latest-appcast.xml")"
+            [[ "$LATEST_BUILD" =~ ^[1-9][0-9]{0,17}$ ]] \
+              || { echo "latest published Sparkle build number is invalid" >&2; exit 1; }
+            ((10#$RAW_BUILD_NUMBER > 10#$LATEST_BUILD)) \
+              || { echo "direct release build must exceed the latest published build" >&2; exit 1; }
           else
             grep -F 'HTTP 404' "$LATEST_ERROR" >/dev/null || {
               cat "$LATEST_ERROR" >&2
               exit 1
             }
-            [[ "$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=1" --jq 'length')" == 0 ]]
+            [[ "$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=1" --jq 'length')" == 0 ]] \
+              || { echo "latest release lookup failed while releases already exist" >&2; exit 1; }
           fi
           printf 'version=%s\n' "$RAW_VERSION" >> "$GITHUB_OUTPUT"
           printf 'build_number=%s\n' "$RAW_BUILD_NUMBER" >> "$GITHUB_OUTPUT"
@@ -104,7 +125,8 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          [[ -n "$P12_BASE64" && -n "$P12_PASSWORD" ]]
+          [[ -n "$P12_BASE64" && -n "$P12_PASSWORD" ]] \
+            || { echo "Developer ID credential is missing" >&2; exit 1; }
           KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
           echo "::add-mask::$KEYCHAIN_PASSWORD"
           echo "CLASP_EPHEMERAL_KEYCHAIN=$RUNNER_TEMP/clasp.keychain-db" >> "$GITHUB_ENV"
@@ -133,8 +155,10 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          [[ -n "$NOTARY_P8_BASE64" ]]
-          [[ -n "$CLASP_NOTARY_KEY_ID" && -n "$CLASP_NOTARY_ISSUER_ID" ]]
+          [[ -n "$NOTARY_P8_BASE64" ]] \
+            || { echo "Apple notarization API key is missing" >&2; exit 1; }
+          [[ -n "$CLASP_NOTARY_KEY_ID" && -n "$CLASP_NOTARY_ISSUER_ID" ]] \
+            || { echo "Apple notarization key metadata is missing" >&2; exit 1; }
           printf '%s' "$NOTARY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
           export CLASP_NOTARY_KEY_FILE="$RUNNER_TEMP/notary.p8"
           ./script/notarize_direct_release.sh release-output/Clasp.app "release-output/Clasp-$RELEASE_VERSION-$RELEASE_BUILD_NUMBER.zip"
@@ -144,7 +168,8 @@ jobs:
           CLASP_SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
         run: |
           set -euo pipefail
-          [[ -n "$CLASP_SPARKLE_PRIVATE_KEY" ]]
+          [[ -n "$CLASP_SPARKLE_PRIVATE_KEY" ]] \
+            || { echo "Sparkle private key is missing" >&2; exit 1; }
           ./script/generate_appcast.sh release-output "https://github.com/$GITHUB_REPOSITORY/releases/download/v$RELEASE_VERSION/"
       - name: Verify finished direct release offline
         env:

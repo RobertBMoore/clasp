@@ -6,6 +6,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CI="$ROOT_DIR/.github/workflows/ci.yml"
 DIRECT="$ROOT_DIR/.github/workflows/direct-release-draft.yml"
+PUBLISHED="$ROOT_DIR/.github/workflows/direct-release-published-acceptance.yml"
 STORE="$ROOT_DIR/.github/workflows/app-store-package.yml"
 STAGE_APP="$ROOT_DIR/script/stage_app.sh"
 DIRECT_PACKAGE="$ROOT_DIR/script/package_direct_release.sh"
@@ -56,6 +57,39 @@ require_release_test_count "$DIRECT" 1
 require_release_test_count "$STORE" 1
 
 require_literal "$DIRECT" 'environment: release'
+require_literal "$CI" 'bash ./script/tests/workflow_bash_assertion_test.sh'
+require_literal "$DIRECT" '[[ "$TRIGGER_REF" == "refs/heads/$DEFAULT_BRANCH" ]]'
+require_literal "$STORE" '[[ "$TRIGGER_REF" == "refs/heads/$DEFAULT_BRANCH" ]]'
+
+SPARKLE_BUILD_XPATH='string((/rss/channel/item[1]/*[local-name()="version" and namespace-uri()="http://www.andymatuschak.org/xml-namespaces/sparkle"])[1])'
+SPARKLE_BUILD_COUNT_XPATH='string(count(/rss/channel/item[1]/*[local-name()="version" and namespace-uri()="http://www.andymatuschak.org/xml-namespaces/sparkle"]))'
+for workflow in "$DIRECT" "$PUBLISHED"; do
+  require_literal "$workflow" "$SPARKLE_BUILD_XPATH"
+  require_literal "$workflow" "$SPARKLE_BUILD_COUNT_XPATH"
+  require_literal "$workflow" 'xmllint --nonet --xpath'
+  require_literal "$workflow" "<![[:space:]]*(DOCTYPE|ENTITY)"
+  if grep -F '/*[local-name()="enclosure"]/@*[local-name()="version"]' "$workflow" >/dev/null; then
+    fail "${workflow##*/} must read the Sparkle item element, not a nonexistent enclosure version attribute"
+  fi
+done
+require_literal "$DIRECT" "--proto '=https' --proto-redir '=https'"
+APPCAST_BUILD_FIXTURE='<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item><sparkle:version>8</sparkle:version><enclosure url="https://example.com/Clasp.zip"/></item></channel></rss>'
+[[ "$(printf '%s' "$APPCAST_BUILD_FIXTURE" | xmllint --xpath "$SPARKLE_BUILD_XPATH" -)" == 8 ]] \
+  || fail "Sparkle build-number XPath must parse the signed appcast item element"
+[[ "$(printf '%s' "$APPCAST_BUILD_FIXTURE" | xmllint --xpath "$SPARKLE_BUILD_COUNT_XPATH" -)" == 1 ]] \
+  || fail "Sparkle build-number XPath must require exactly one item element"
+WRONG_NAMESPACE_FIXTURE='<rss xmlns:sparkle="https://example.com/not-sparkle"><channel><item><sparkle:version>8</sparkle:version></item></channel></rss>'
+[[ "$(printf '%s' "$WRONG_NAMESPACE_FIXTURE" | xmllint --xpath "$SPARKLE_BUILD_COUNT_XPATH" -)" == 0 ]] \
+  || fail "Sparkle build-number XPath must reject the wrong namespace"
+ATTRIBUTE_ONLY_FIXTURE='<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item><enclosure sparkle:version="8"/></item></channel></rss>'
+[[ "$(printf '%s' "$ATTRIBUTE_ONLY_FIXTURE" | xmllint --xpath "$SPARKLE_BUILD_COUNT_XPATH" -)" == 0 ]] \
+  || fail "Sparkle build-number XPath must reject enclosure attributes"
+MISSING_BUILD_FIXTURE='<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item><enclosure url="https://example.com/Clasp.zip"/></item></channel></rss>'
+[[ "$(printf '%s' "$MISSING_BUILD_FIXTURE" | xmllint --xpath "$SPARKLE_BUILD_COUNT_XPATH" -)" == 0 ]] \
+  || fail "Sparkle build-number XPath must expose a missing item element"
+DUPLICATE_BUILD_FIXTURE='<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item><sparkle:version>8</sparkle:version><sparkle:version>9</sparkle:version></item></channel></rss>'
+[[ "$(printf '%s' "$DUPLICATE_BUILD_FIXTURE" | xmllint --xpath "$SPARKLE_BUILD_COUNT_XPATH" -)" == 2 ]] \
+  || fail "Sparkle build-number cardinality fixture must expose duplicates"
 
 for workflow in "$DIRECT" "$STORE"; do
   require_literal "$workflow" 'cancel-in-progress: false'
