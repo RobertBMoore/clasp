@@ -30,18 +30,23 @@ jobs:
       - name: Require protected default branch and explicit non-submission confirmation
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          REF_NAME: ${{ github.ref_name }}
+          TRIGGER_REF: ${{ github.ref }}
           REF_PROTECTED: ${{ github.ref_protected }}
           CONFIRMATION: ${{ inputs.confirmation }}
           RAW_VERSION: ${{ inputs.version }}
           RAW_BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
           set -euo pipefail
-          [[ "$REF_NAME" == "$DEFAULT_BRANCH" ]]
-          [[ "$REF_PROTECTED" == true ]]
-          [[ "$CONFIRMATION" == 'BUILD PACKAGE ONLY' ]]
-          [[ "$RAW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          [[ "$RAW_BUILD_NUMBER" =~ ^[1-9][0-9]{0,17}$ ]]
+          [[ "$TRIGGER_REF" == "refs/heads/$DEFAULT_BRANCH" ]] \
+            || { echo "App Store packaging must run from the default branch" >&2; exit 1; }
+          [[ "$REF_PROTECTED" == true ]] \
+            || { echo "App Store packaging requires a protected ref" >&2; exit 1; }
+          [[ "$CONFIRMATION" == 'BUILD PACKAGE ONLY' ]] \
+            || { echo "App Store packaging confirmation is invalid" >&2; exit 1; }
+          [[ "$RAW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+            || { echo "App Store version is invalid" >&2; exit 1; }
+          [[ "$RAW_BUILD_NUMBER" =~ ^[1-9][0-9]{0,17}$ ]] \
+            || { echo "App Store build number is invalid" >&2; exit 1; }
 
   signed-package:
     needs: protected-ref-preflight
@@ -68,17 +73,26 @@ jobs:
           REQUESTED_BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
           set -euo pipefail
-          [[ "$PROTECTION_ACKNOWLEDGEMENT" == 'required-reviewers-configured' ]]
-          [[ "$TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]
-          [[ "$APP_ID_PREFIX" =~ ^[A-Z0-9]{10}$ ]]
-          [[ "$APPLICATION_IDENTITY" == 'Apple Distribution: '* || "$APPLICATION_IDENTITY" == '3rd Party Mac Developer Application: '* ]]
-          [[ "$INSTALLER_IDENTITY" == '3rd Party Mac Developer Installer: '* || "$INSTALLER_IDENTITY" == 'Mac Installer Distribution: '* ]]
-          [[ "$APPLICATION_CERTIFICATE_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]]
-          [[ "$INSTALLER_CERTIFICATE_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]]
+          [[ "$PROTECTION_ACKNOWLEDGEMENT" == 'required-reviewers-configured' ]] \
+            || { echo "App Store release environment acknowledgement is invalid" >&2; exit 1; }
+          [[ "$TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] \
+            || { echo "App Store Team ID is invalid" >&2; exit 1; }
+          [[ "$APP_ID_PREFIX" =~ ^[A-Z0-9]{10}$ ]] \
+            || { echo "App Store application identifier prefix is invalid" >&2; exit 1; }
+          [[ "$APPLICATION_IDENTITY" == 'Apple Distribution: '* || "$APPLICATION_IDENTITY" == '3rd Party Mac Developer Application: '* ]] \
+            || { echo "App Store application identity is invalid" >&2; exit 1; }
+          [[ "$INSTALLER_IDENTITY" == '3rd Party Mac Developer Installer: '* || "$INSTALLER_IDENTITY" == 'Mac Installer Distribution: '* ]] \
+            || { echo "App Store installer identity is invalid" >&2; exit 1; }
+          [[ "$APPLICATION_CERTIFICATE_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]] \
+            || { echo "App Store application certificate fingerprint is invalid" >&2; exit 1; }
+          [[ "$INSTALLER_CERTIFICATE_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]] \
+            || { echo "App Store installer certificate fingerprint is invalid" >&2; exit 1; }
           ./script/lib/validate_public_https_url.sh \
             "$PRIVACY_POLICY_URL" --require-reachable
-          [[ "$LAST_ACCEPTED_BUILD_NUMBER" =~ ^(0|[1-9][0-9]{0,17})$ ]]
-          ((10#$REQUESTED_BUILD_NUMBER > 10#$LAST_ACCEPTED_BUILD_NUMBER))
+          [[ "$LAST_ACCEPTED_BUILD_NUMBER" =~ ^(0|[1-9][0-9]{0,17})$ ]] \
+            || { echo "last accepted App Store build number is invalid" >&2; exit 1; }
+          ((10#$REQUESTED_BUILD_NUMBER > 10#$LAST_ACCEPTED_BUILD_NUMBER)) \
+            || { echo "requested App Store build must exceed the last accepted build" >&2; exit 1; }
 
       - name: Test the exact App Store compilation boundary
         env:
@@ -86,13 +100,15 @@ jobs:
         run: |
           set -euo pipefail
           source release/config.env
-          [[ ! -e Package.resolved && ! -L Package.resolved ]]
+          [[ ! -e Package.resolved && ! -L Package.resolved ]] \
+            || { echo "root Package.resolved must be absent before App Store release tests" >&2; exit 1; }
           swift test \
             --scratch-path .build-app-store-release-test \
             --configuration release \
             --arch "$CLASP_ARCH" \
             -Xswiftc -DCLASP_APP_STORE
-          [[ ! -e Package.resolved && ! -L Package.resolved ]]
+          [[ ! -e Package.resolved && ! -L Package.resolved ]] \
+            || { echo "root Package.resolved must remain absent after App Store release tests" >&2; exit 1; }
 
       - name: Import exact App Store identities into an ephemeral keychain
         env:
@@ -104,9 +120,12 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          [[ -n "$APPLICATION_P12" && -n "$APPLICATION_P12_PASSWORD" ]]
-          [[ -n "$INSTALLER_P12" && -n "$INSTALLER_P12_PASSWORD" ]]
-          [[ -n "$PROFILE_BASE64" ]]
+          [[ -n "$APPLICATION_P12" && -n "$APPLICATION_P12_PASSWORD" ]] \
+            || { echo "App Store application credential is missing" >&2; exit 1; }
+          [[ -n "$INSTALLER_P12" && -n "$INSTALLER_P12_PASSWORD" ]] \
+            || { echo "App Store installer credential is missing" >&2; exit 1; }
+          [[ -n "$PROFILE_BASE64" ]] \
+            || { echo "App Store provisioning profile is missing" >&2; exit 1; }
           KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
           echo "::add-mask::$KEYCHAIN_PASSWORD"
           {
@@ -137,7 +156,8 @@ jobs:
           ./script/package_app_store.sh \
             --version '${{ inputs.version }}' \
             --build-number '${{ inputs.build_number }}'
-          [[ ! -e Package.resolved && ! -L Package.resolved ]]
+          [[ ! -e Package.resolved && ! -L Package.resolved ]] \
+            || { echo "App Store packaging left a root Package.resolved" >&2; exit 1; }
 
       - name: Upload signed package for human review only
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

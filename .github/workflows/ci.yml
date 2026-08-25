@@ -21,7 +21,8 @@ jobs:
         run: |
           set -euo pipefail
           source release/config.env
-          [[ ! -e Package.resolved && ! -L Package.resolved ]]
+          [[ ! -e Package.resolved && ! -L Package.resolved ]] \
+            || { echo "root Package.resolved must be absent before App Store compilation" >&2; exit 1; }
           swift test \
             --scratch-path .build-app-store-ci \
             --configuration release \
@@ -60,7 +61,8 @@ jobs:
             echo "App Store binary unexpectedly contains Accessibility capture symbols" >&2
             exit 1
           fi
-          [[ ! -e Package.resolved && ! -L Package.resolved ]]
+          [[ ! -e Package.resolved && ! -L Package.resolved ]] \
+            || { echo "root Package.resolved must remain absent after App Store compilation" >&2; exit 1; }
       - name: Test the direct-download compilation boundary
         env:
           CLASP_DIRECT_DISTRIBUTION: "1"
@@ -104,7 +106,8 @@ jobs:
       - name: Validate release-script contracts
         run: |
           set -euo pipefail
-          [[ ! -e Package.resolved && ! -L Package.resolved ]]
+          [[ ! -e Package.resolved && ! -L Package.resolved ]] \
+            || { echo "root Package.resolved must be absent before release contract tests" >&2; exit 1; }
           find script -type f -name '*.sh' -print0 | xargs -0 bash -n
           bash ./script/tests/direct_signing_test.sh
           ./script/tests/app_store_packaging_test.sh
@@ -113,7 +116,9 @@ jobs:
           ./script/tests/install_and_publish_custody_test.sh
           ./script/tests/direct_package_resolution_test.sh
           ./script/tests/release_workflow_contract_test.sh
+          bash ./script/tests/workflow_bash_assertion_test.sh
           ./script/tests/app_store_screenshot_test.sh
           ./script/lib/validate_public_https_url.sh --self-test
           ./script/verify_direct_release.sh --self-test
-          [[ ! -e Package.resolved && ! -L Package.resolved ]]
+          [[ ! -e Package.resolved && ! -L Package.resolved ]] \
+            || { echo "release contract tests left a root Package.resolved" >&2; exit 1; }

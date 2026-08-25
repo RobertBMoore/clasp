@@ -63,44 +63,61 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          [[ "$REPOSITORY_VISIBILITY" == public ]]
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
-          [[ "$UPDATE_FEED_URL" == "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml" ]]
-          [[ -n "$SPARKLE_PUBLIC_KEY" ]]
+          [[ "$REPOSITORY_VISIBILITY" == public ]] \
+            || { echo "published acceptance requires a public repository" >&2; exit 1; }
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+            || { echo "published release tag is invalid" >&2; exit 1; }
+          [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]] \
+            || { echo "published release ID is invalid" >&2; exit 1; }
+          [[ "$UPDATE_FEED_URL" == "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml" ]] \
+            || { echo "published update-feed URL is invalid" >&2; exit 1; }
+          [[ -n "$SPARKLE_PUBLIC_KEY" ]] \
+            || { echo "published Sparkle public key is missing" >&2; exit 1; }
           source trusted-source/script/lib/direct_signing.sh
           clasp_direct_is_valid_identity "$DEVELOPER_IDENTITY"
           clasp_direct_is_valid_sha256 "$DEVELOPER_ID_CERTIFICATE_SHA256"
           DEVELOPER_ID_CERTIFICATE_SHA256="$(clasp_direct_uppercase_sha256 \
             "$DEVELOPER_ID_CERTIFICATE_SHA256")"
-          [[ "$EXPECTED_TAG_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$TRUSTED_WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$(git -C trusted-source rev-parse HEAD)" == "$TRUSTED_WORKFLOW_SHA" ]]
+          [[ "$EXPECTED_TAG_SHA" =~ ^[0-9a-f]{40}$ ]] \
+            || { echo "expected release source SHA is invalid" >&2; exit 1; }
+          [[ "$TRUSTED_WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]] \
+            || { echo "trusted workflow SHA is invalid" >&2; exit 1; }
+          [[ "$(git -C trusted-source rev-parse HEAD)" == "$TRUSTED_WORKFLOW_SHA" ]] \
+            || { echo "trusted workflow checkout does not match its pinned SHA" >&2; exit 1; }
 
           if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
-            [[ "$TRIGGER_REF" == "refs/heads/$DEFAULT_BRANCH" ]]
+            [[ "$TRIGGER_REF" == "refs/heads/$DEFAULT_BRANCH" ]] \
+              || { echo "recovery acceptance must dispatch from the default branch" >&2; exit 1; }
             clasp_direct_is_valid_sha256 "$APPROVED_ARCHIVE_SHA256"
             APPROVED_ARCHIVE_SHA256="$(clasp_direct_uppercase_sha256 \
               "$APPROVED_ARCHIVE_SHA256")"
           else
-            [[ -z "$APPROVED_ARCHIVE_SHA256" ]]
+            [[ -z "$APPROVED_ARCHIVE_SHA256" ]] \
+              || { echo "automatic published acceptance must not receive a recovery hash" >&2; exit 1; }
           fi
 
           RELEASE_JSON="$RUNNER_TEMP/published-release.json"
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > "$RELEASE_JSON"
-          [[ "$(jq -r '.id | tostring' "$RELEASE_JSON")" == "$RELEASE_ID" ]]
-          [[ "$(jq -r .tag_name "$RELEASE_JSON")" == "$RELEASE_TAG" ]]
-          [[ "$(jq -r .draft "$RELEASE_JSON")" == false ]]
-          [[ "$(jq -r .prerelease "$RELEASE_JSON")" == false ]]
-          [[ "$(jq '.assets | length' "$RELEASE_JSON")" == 3 ]]
+          [[ "$(jq -r '.id | tostring' "$RELEASE_JSON")" == "$RELEASE_ID" ]] \
+            || { echo "live release ID does not match approval" >&2; exit 1; }
+          [[ "$(jq -r .tag_name "$RELEASE_JSON")" == "$RELEASE_TAG" ]] \
+            || { echo "live release tag does not match approval" >&2; exit 1; }
+          [[ "$(jq -r .draft "$RELEASE_JSON")" == false ]] \
+            || { echo "release must be public before acceptance" >&2; exit 1; }
+          [[ "$(jq -r .prerelease "$RELEASE_JSON")" == false ]] \
+            || { echo "published acceptance refuses prereleases" >&2; exit 1; }
+          [[ "$(jq '.assets | length' "$RELEASE_JSON")" == 3 ]] \
+            || { echo "published release must contain exactly three assets" >&2; exit 1; }
 
           ENCODED_DEFAULT_BRANCH="$(jq -rn --arg value "$DEFAULT_BRANCH" '$value | @uri')"
-          [[ "$(gh api "repos/$GITHUB_REPOSITORY/branches/$ENCODED_DEFAULT_BRANCH" --jq '.protected')" == true ]]
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/branches/$ENCODED_DEFAULT_BRANCH" --jq '.protected')" == true ]] \
+            || { echo "default branch is not protected" >&2; exit 1; }
           git -C trusted-source fetch --force --tags origin
           git -C trusted-source fetch origin \
             "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
           TAG_SHA="$(git -C trusted-source rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")"
-          [[ "$TAG_SHA" == "$EXPECTED_TAG_SHA" ]]
+          [[ "$TAG_SHA" == "$EXPECTED_TAG_SHA" ]] \
+            || { echo "release tag source does not match approval" >&2; exit 1; }
           git -C trusted-source merge-base --is-ancestor \
             "$TAG_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"
           git -C trusted-source merge-base --is-ancestor \
@@ -119,12 +136,23 @@ jobs:
             --output "$RUNNER_TEMP/public-appcast.xml"
           cmp -s release-output/appcast.xml "$RUNNER_TEMP/public-appcast.xml"
 
-          BUILD_NUMBER="$(xmllint --xpath \
-            'string((/*[local-name()="rss"]/*[local-name()="channel"]/*[local-name()="item"][1]/*[local-name()="version" and namespace-uri()="http://www.andymatuschak.org/xml-namespaces/sparkle"])[1])' \
+          if grep -E '<![[:space:]]*(DOCTYPE|ENTITY)' release-output/appcast.xml >/dev/null; then
+            echo "published appcast contains a forbidden XML declaration" >&2
+            exit 1
+          fi
+          BUILD_NUMBER_COUNT="$(xmllint --nonet --xpath \
+            'string(count(/rss/channel/item[1]/*[local-name()="version" and namespace-uri()="http://www.andymatuschak.org/xml-namespaces/sparkle"]))' \
             release-output/appcast.xml)"
-          [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]{0,17}$ ]]
+          [[ "$BUILD_NUMBER_COUNT" == 1 ]] \
+            || { echo "published appcast must contain exactly one Sparkle build number" >&2; exit 1; }
+          BUILD_NUMBER="$(xmllint --nonet --xpath \
+            'string((/rss/channel/item[1]/*[local-name()="version" and namespace-uri()="http://www.andymatuschak.org/xml-namespaces/sparkle"])[1])' \
+            release-output/appcast.xml)"
+          [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]{0,17}$ ]] \
+            || { echo "published Sparkle build number is invalid" >&2; exit 1; }
           ARCHIVE="release-output/Clasp-$VERSION-$BUILD_NUMBER.zip"
-          [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]]
+          [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]] \
+            || { echo "published archive or checksum is missing" >&2; exit 1; }
           ARCHIVE_SHA256="$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')"
           ARCHIVE_NAME="${ARCHIVE##*/}"
           jq -e --arg archive "$ARCHIVE_NAME" \
@@ -132,9 +160,11 @@ jobs:
             "$RELEASE_JSON" >/dev/null
           [[ "$(jq -r --arg archive "$ARCHIVE_NAME" \
             '.assets[] | select(.name == $archive) | .digest' "$RELEASE_JSON")" == \
-            "sha256:$ARCHIVE_SHA256" ]]
+            "sha256:$ARCHIVE_SHA256" ]] \
+            || { echo "GitHub archive digest does not match the downloaded release asset" >&2; exit 1; }
           if [[ -n "$APPROVED_ARCHIVE_SHA256" ]]; then
-            [[ "$(clasp_direct_uppercase_sha256 "$ARCHIVE_SHA256")" == "$APPROVED_ARCHIVE_SHA256" ]]
+            [[ "$(clasp_direct_uppercase_sha256 "$ARCHIVE_SHA256")" == "$APPROVED_ARCHIVE_SHA256" ]] \
+              || { echo "published archive does not match the approved recovery hash" >&2; exit 1; }
           fi
           PUBLIC_ARCHIVE_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/${ARCHIVE##*/}"
           PUBLIC_CHECKSUM_URL="$PUBLIC_ARCHIVE_URL.sha256"
