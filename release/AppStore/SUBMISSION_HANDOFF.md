@@ -6,14 +6,14 @@ Complete this record from the exact successful package workflow and App Store Co
 
 - Source commit SHA: `ab09cdaceac9d2c4dbf9e762e531daf6db40e4b8`
 - Protected branch: `main`
-- GitHub package workflow run URL: `https://github.com/RobertBMoore/clasp/actions/runs/32790427285`; both protected preflight and signed-package jobs passed against the exact source commit above. GitHub recorded archive digest `sha256:5795d154c7675bf5f22fa490632b88641ad8e3a1307bc375ba1d31411dd2381e`. This is the current upload candidate, but it has not been delivered to or accepted by Apple. Later merge `f62c246153469e2d4fcd97d13a342db8a81aaad8` changes only direct-release verification and does not alter this Store artifact.
+- GitHub package workflow run URL: `https://github.com/RobertBMoore/clasp/actions/runs/32790427285`; both protected preflight and signed-package jobs passed against the exact source commit above. GitHub recorded archive digest `sha256:5795d154c7675bf5f22fa490632b88641ad8e3a1307bc375ba1d31411dd2381e`. This exact artifact was delivered to Apple under delivery UUID `2d7fac89-473a-46a2-818c-c7cd530ef0b0` and processed as `VALID` / `APP_STORE_ELIGIBLE`. Later merge `f62c246153469e2d4fcd97d13a342db8a81aaad8` changes only direct-release verification and does not alter this Store artifact.
 - Registered explicit Bundle ID / Apple identifier record: `Clasp` / `com.robertmoore.personalnotepad`, Paper LLC team `R3Z7H2TRCB`, verified live 2026-08-24
 - Expected Apple Developer Team ID from the account record (not artifact evidence): `R3Z7H2TRCB`
 - App Store Connect app record: `Clasp: Private Markdown Notes`, macOS `1.0.0`, Apple app ID `6804786714`, `Prepare for Submission`, verified live 2026-08-24. Sign-in is not required and release is manual. The permanent SKU was verified in the authenticated account and is intentionally withheld from this public repository.
 - Version (`CFBundleShortVersionString`): `1.0.0`; the authenticated App Store Connect record and protected review artifact are aligned.
 - Build (`CFBundleVersion`): `8`
-- Last accepted build-number assertion, App Store Connect source, and checked date/time: protected environment assertion `0`; the authenticated macOS `1.0.0` version page showed no uploaded or selectable build after final package generation on 2026-08-24. Revalidate immediately before upload because this live account state can change.
-- Package filename: `Clasp-1.0.0-8-AppStore.pkg` (protected review-only workflow artifact; not uploaded)
+- Last accepted build-number assertion, App Store Connect source, and checked date/time: protected `app-store-release` environment assertion `8`; Apple's terminal uploader result and the authenticated macOS `1.0.0` version page both showed processed build `1.0.0 (8)` on 2026-08-24. Build 8 was attached to the version and saved at approximately 7:39 PM CDT.
+- Package filename: `Clasp-1.0.0-8-AppStore.pkg` (exact protected workflow artifact uploaded and processed)
 - Package SHA-256: `09dcc9361d7a95c5cb699507b7a5d381c3d925b88130c346aae2e3fe6d80ccb0`
 - Package-payload parity result: exact path/type/mode/symlink/hash/xattr parity and script-free, non-relocatable `/Applications` PackageInfo policy passed on GitHub's `macos-26` runner and again against the downloaded artifact on 2026-08-24. The corrected payload makes the embedded provisioning profile mode `0644`; the independent permission gate found no app-payload file without other-read and no directory without other-execute. The independent check also revalidated the exact application/installer certificate pins, provisioning profile, App Sandbox entitlements, migration manifest, Privacy manifest, absence of Sparkle and Accessibility selection capture, and `ITSAppUsesNonExemptEncryption=false`. The workflow removed its imported release credentials in the always-run cleanup step.
 - Privacy policy URL embedded in the signed app: `https://robertbmoore.github.io/clasp/privacy.html`
@@ -24,15 +24,15 @@ Complete this record from the exact successful package workflow and App Store Co
 
 ## Upload and processing
 
-- Upload tool and version (Transporter, Xcode, or `altool`): corrected package not run. `xcrun altool --validate-app` rejected the superseded SHA-256 `6b9944b5...a8854c` with `ITMS-90255` because its embedded provisioning profile was mode `0600`; no upload occurred. PR #10 and protected run `32790427285` corrected and regression-tested that permission defect.
-- Upload date/time and operator:
-- Delivery/upload ID:
+- Upload tool and version (Transporter, Xcode, or `altool`): `xcrun altool` / ContentDelivery `26.40.1 (174001)` on macOS `26.5.2 (25F84)`. The superseded SHA-256 `6b9944b5...a8854c` had failed `--validate-app` with `ITMS-90255`; PR #10 and protected run `32790427285` corrected and regression-tested that permission defect before this successful delivery.
+- Upload date/time and operator: 2026-08-24 7:37:11 PM CDT; Robert-approved local Codex release session using the Paper LLC team API key
+- Delivery/upload ID: `2d7fac89-473a-46a2-818c-c7cd530ef0b0`
 - App Store Connect app ID: `6804786714`
 - Bundle ID: `com.robertmoore.personalnotepad`
-- App version record: macOS `1.0.0`, `Prepare for Submission`; build 8 has not been uploaded or selected
-- Build processing result and date/time:
-- Apple validation tool/version and result before upload: corrected SHA-256 `09dcc936...ccb0` awaits exact upload authorization and live Apple validation
-- Export-compliance result: Account Holder confirmed exempt operating-system encryption; `ITSAppUsesNonExemptEncryption=false` is present in the exact package and passed independent artifact validation. App Store Connect has not processed the package yet.
+- App version record: macOS `1.0.0`, `Prepare for Submission`; build `1.0.0 (8)` is attached and saved; release remains manual
+- Build processing result and date/time: terminal `VALID`, `APP_STORE_ELIGIBLE`, `is-on-app-store-connect=true`; uploaded 2026-08-24 7:37:11 PM CDT and attached to version at approximately 7:39 PM CDT
+- Apple validation tool/version and result before upload: `xcrun altool --validate-app` using ContentDelivery `26.40.1 (174001)` completed successfully with no validation errors against exact SHA-256 `09dcc936...ccb0`
+- Export-compliance result: Account Holder confirmed exempt operating-system encryption; `ITSAppUsesNonExemptEncryption=false` is present in the exact package, passed independent artifact validation, and Apple processing returned `usesNonExemptEncryption=false`.
 - Signed-sandbox acceptance evidence:
 - Synthetic migration and Vault Keychain-custody record:
 - App Review submission ID, submitted date/time, and current status:
