@@ -120,7 +120,7 @@ jobs:
           cmp -s release-output/appcast.xml "$RUNNER_TEMP/public-appcast.xml"
 
           BUILD_NUMBER="$(xmllint --xpath \
-            'string(/*[local-name()="rss"]/*[local-name()="channel"]/*[local-name()="item"][1]/*[local-name()="enclosure"]/@*[local-name()="version"])' \
+            'string((/*[local-name()="rss"]/*[local-name()="channel"]/*[local-name()="item"][1]/*[local-name()="version" and namespace-uri()="http://www.andymatuschak.org/xml-namespaces/sparkle"])[1])' \
             release-output/appcast.xml)"
           [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]{0,17}$ ]]
           ARCHIVE="release-output/Clasp-$VERSION-$BUILD_NUMBER.zip"

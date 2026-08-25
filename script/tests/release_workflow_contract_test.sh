@@ -6,6 +6,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CI="$ROOT_DIR/.github/workflows/ci.yml"
 DIRECT="$ROOT_DIR/.github/workflows/direct-release-draft.yml"
+PUBLISHED="$ROOT_DIR/.github/workflows/direct-release-published-acceptance.yml"
 STORE="$ROOT_DIR/.github/workflows/app-store-package.yml"
 STAGE_APP="$ROOT_DIR/script/stage_app.sh"
 DIRECT_PACKAGE="$ROOT_DIR/script/package_direct_release.sh"
@@ -56,6 +57,17 @@ require_release_test_count "$DIRECT" 1
 require_release_test_count "$STORE" 1
 
 require_literal "$DIRECT" 'environment: release'
+
+SPARKLE_BUILD_XPATH='string((/*[local-name()="rss"]/*[local-name()="channel"]/*[local-name()="item"][1]/*[local-name()="version" and namespace-uri()="http://www.andymatuschak.org/xml-namespaces/sparkle"])[1])'
+for workflow in "$DIRECT" "$PUBLISHED"; do
+  require_literal "$workflow" "$SPARKLE_BUILD_XPATH"
+  if grep -F '/*[local-name()="enclosure"]/@*[local-name()="version"]' "$workflow" >/dev/null; then
+    fail "${workflow##*/} must read the Sparkle item element, not a nonexistent enclosure version attribute"
+  fi
+done
+APPCAST_BUILD_FIXTURE='<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item><sparkle:version>8</sparkle:version><enclosure url="https://example.com/Clasp.zip"/></item></channel></rss>'
+[[ "$(printf '%s' "$APPCAST_BUILD_FIXTURE" | xmllint --xpath "$SPARKLE_BUILD_XPATH" -)" == 8 ]] \
+  || fail "Sparkle build-number XPath must parse the signed appcast item element"
 
 for workflow in "$DIRECT" "$STORE"; do
   require_literal "$workflow" 'cancel-in-progress: false'
