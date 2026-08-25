@@ -48,7 +48,10 @@ case "$CHANNEL" in
     [[ "$(plutil -extract SURequireSignedFeed raw "$INFO")" == true ]]
     [[ "$(plutil -extract SUVerifyUpdateBeforeExtraction raw "$INFO")" == true ]]
     otool -L "$BIN" | grep -F 'Sparkle.framework/' >/dev/null
-    codesign -dvv "$APP" 2>&1 | grep -q 'flags=.*runtime'
+    DIRECT_SIGNING_DETAILS="$(codesign -dvv "$APP" 2>&1)"
+    grep -Eq \
+      '^(flags=|CodeDirectory[[:space:]].*[[:space:]]flags=)0x[[:xdigit:]]+\(([[:alnum:]_-]+,)*runtime(,[[:alnum:]_-]+)*\)([[:space:]]|$)' \
+      <<< "$DIRECT_SIGNING_DETAILS"
     ;;
   app-store)
     [[ -f "$APP/Contents/embedded.provisionprofile" && ! -e "$APP/Contents/Frameworks/Sparkle.framework" ]]

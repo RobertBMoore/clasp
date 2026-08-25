@@ -10,6 +10,7 @@ STORE="$ROOT_DIR/.github/workflows/app-store-package.yml"
 STAGE_APP="$ROOT_DIR/script/stage_app.sh"
 DIRECT_PACKAGE="$ROOT_DIR/script/package_direct_release.sh"
 DIRECT_VERIFY="$ROOT_DIR/script/verify_direct_release.sh"
+VALIDATE_APP="$ROOT_DIR/script/validate_app.sh"
 INFO_PLIST="$ROOT_DIR/release/Info.plist"
 
 fail() {
@@ -92,6 +93,16 @@ require_literal "$DIRECT_PACKAGE" '--sign-identity "$SIGN_IDENTITY_SHA1"'
 require_literal "$DIRECT_PACKAGE" 'clasp_direct_require_signed_path_certificate'
 require_literal "$DIRECT_VERIFY" ': "${CLASP_DEVELOPER_ID_APPLICATION_CERTIFICATE_SHA256:?set the expected Developer ID Application certificate SHA-256 fingerprint}"'
 require_literal "$DIRECT_VERIFY" 'clasp_direct_require_signed_path_certificate'
+require_literal "$DIRECT_VERIFY" 'bundle_trees_match_without_following_symlinks "$APP" "$EXTRACTED_APP"'
+require_literal "$DIRECT_VERIFY" '/usr/bin/diff -qr --no-dereference "$source_tree" "$extracted_tree"'
+require_literal "$DIRECT_VERIFY" "'^(flags=|CodeDirectory[[:space:]].*[[:space:]]flags=)0x[[:xdigit:]]+\\(([[:alnum:]_-]+,)*runtime(,[[:alnum:]_-]+)*\\)([[:space:]]|$)'"
+if grep -F '/usr/bin/diff -qr "$APP" "$EXTRACTED_APP"' "$DIRECT_VERIFY" >/dev/null; then
+  fail "direct verifier must not follow Sparkle framework symlinks during tree comparison"
+fi
+require_literal "$VALIDATE_APP" 'DIRECT_SIGNING_DETAILS="$(codesign -dvv "$APP" 2>&1)"'
+if grep -F 'codesign -dvv "$APP" 2>&1 | grep -q' "$VALIDATE_APP" >/dev/null; then
+  fail "direct validation must not expose codesign to grep -q SIGPIPE under pipefail"
+fi
 if grep -F 'CLASP_EPHEMERAL_KEYCHAIN_PASSWORD=' "$STORE" >/dev/null; then
   fail "the generated App Store keychain password must stay step-local"
 fi

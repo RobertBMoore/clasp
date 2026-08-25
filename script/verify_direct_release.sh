@@ -54,6 +54,20 @@ xml_value() {
   /usr/bin/xmllint --nonet --xpath "$2" "$1" 2>/dev/null
 }
 
+code_signing_details_have_hardened_runtime() {
+  local details="${1-}"
+  /usr/bin/grep -Eq \
+    '^(flags=|CodeDirectory[[:space:]].*[[:space:]]flags=)0x[[:xdigit:]]+\(([[:alnum:]_-]+,)*runtime(,[[:alnum:]_-]+)*\)([[:space:]]|$)' \
+    <<< "$details"
+}
+
+bundle_trees_match_without_following_symlinks() {
+  local source_tree="$1" extracted_tree="$2"
+  [[ -d "$source_tree" && ! -L "$source_tree" \
+    && -d "$extracted_tree" && ! -L "$extracted_tree" ]] || return 1
+  /usr/bin/diff -qr --no-dereference "$source_tree" "$extracted_tree" >/dev/null
+}
+
 build_signature_verifier() {
   local output="$1"
   local module_cache="$2"
@@ -231,7 +245,8 @@ signature_details_match() {
   details="$(/usr/bin/codesign -dvvv "$path" 2>&1)" || { reject "could not read code-signing details for $path"; return 1; }
   /usr/bin/grep -Fqx "Authority=$expected_identity" <<< "$details" || { reject "unexpected signing identity on $path"; return 1; }
   /usr/bin/grep -Fqx "TeamIdentifier=$expected_team" <<< "$details" || { reject "unexpected signing team on $path"; return 1; }
-  /usr/bin/grep -Eq '^flags=.*\(runtime\)' <<< "$details" || { reject "hardened runtime is missing on $path"; return 1; }
+  code_signing_details_have_hardened_runtime "$details" \
+    || { reject "hardened runtime is missing on $path"; return 1; }
   /usr/bin/grep -Eq '^Timestamp=' <<< "$details" || { reject "trusted signing timestamp is missing on $path"; return 1; }
   clasp_direct_require_signed_path_certificate \
     "$path" "$expected_certificate_sha256" "$scratch" \
@@ -328,10 +343,54 @@ run_self_test() (
   set -euo pipefail
   local fixture version build archive checksum appcast archive_length archive_url
   local archive_signature feed_signature public_key feed_content_length invalid_signature
-  local bad_checksum bad_appcast
+  local bad_checksum bad_appcast tree_a tree_b
   fixture="$(/usr/bin/mktemp -d /tmp/clasp-direct-verifier-self-test.XXXXXX)"
   [[ "$fixture" == /tmp/clasp-direct-verifier-self-test.* ]] || fail "unsafe self-test directory"
   trap '/bin/rm -rf "$fixture"' EXIT
+
+  code_signing_details_have_hardened_runtime \
+    'CodeDirectory v=20500 size=11403 flags=0x10000(runtime) hashes=349+3 location=embedded' \
+    || fail "self-test rejected current macOS CodeDirectory runtime flags"
+  code_signing_details_have_hardened_runtime \
+    'flags=0x10000(runtime)' \
+    || fail "self-test rejected legacy runtime flags"
+  code_signing_details_have_hardened_runtime \
+    'CodeDirectory v=20500 size=11403 flags=0x18000(kill,runtime,library-validation) hashes=349+3 location=embedded' \
+    || fail "self-test rejected runtime among multiple exact flags"
+  ! code_signing_details_have_hardened_runtime \
+    'CodeDirectory v=20500 size=11403 flags=0x0(none) hashes=349+3 location=embedded' \
+    || fail "self-test accepted code without hardened runtime"
+  ! code_signing_details_have_hardened_runtime \
+    'CodeDirectory v=20500 size=11403 flags=0x10000(notruntime) hashes=349+3 location=embedded' \
+    || fail "self-test accepted a substring instead of the runtime flag token"
+  ! code_signing_details_have_hardened_runtime \
+    'Runtime Version=26.5.0' \
+    || fail "self-test treated a runtime-version label as hardened-runtime flags"
+  ! code_signing_details_have_hardened_runtime $'Executable=/tmp/Clasp flags=0x10000(runtime)\nCodeDirectory v=20500 size=11403 flags=0x0(none) hashes=349+3 location=embedded' \
+    || fail "self-test accepted runtime text outside a canonical codesign flags line"
+
+  tree_a="$fixture/tree-a"
+  tree_b="$fixture/tree-b"
+  /bin/mkdir -p "$tree_a/Versions/B/Headers"
+  /usr/bin/printf 'signed payload' > "$tree_a/Versions/B/Headers/example.h"
+  /bin/ln -s B "$tree_a/Versions/Current"
+  /bin/ln -s Versions/Current/Headers "$tree_a/Headers"
+  /usr/bin/ditto "$tree_a" "$tree_b"
+  bundle_trees_match_without_following_symlinks "$tree_a" "$tree_b" \
+    || fail "self-test rejected equivalent framework-style symlink trees"
+  /usr/bin/printf 'changed payload' > "$tree_b/Versions/B/Headers/example.h"
+  ! bundle_trees_match_without_following_symlinks "$tree_a" "$tree_b" \
+    || fail "self-test accepted different bundle trees"
+  /usr/bin/printf 'signed payload' > "$tree_b/Versions/B/Headers/example.h"
+  /bin/rm "$tree_b/Headers"
+  /bin/ln -s Versions/B/Headers "$tree_b/Headers"
+  ! bundle_trees_match_without_following_symlinks "$tree_a" "$tree_b" \
+    || fail "self-test accepted a changed framework symlink target"
+  /bin/rm "$tree_b/Headers"
+  /bin/ln -s Versions/Current/Headers "$tree_b/Headers"
+  /usr/bin/printf 'unexpected' > "$tree_b/extra-file"
+  ! bundle_trees_match_without_following_symlinks "$tree_a" "$tree_b" \
+    || fail "self-test accepted an extra archived bundle entry"
 
   version="1.2.3"
   build="42"
@@ -490,7 +549,8 @@ UNEXPECTED_TOP_LEVEL="$(/usr/bin/find "$TEMP_DIR/extracted" -mindepth 1 -maxdept
 if [[ "$ARCHIVE_ONLY" == "1" ]]; then
   VERIFIED_APPS=("$EXTRACTED_APP")
 else
-  /usr/bin/diff -qr "$APP" "$EXTRACTED_APP" >/dev/null || fail "staged app and archived app contents differ"
+  bundle_trees_match_without_following_symlinks "$APP" "$EXTRACTED_APP" \
+    || fail "staged app and archived app contents differ"
   VERIFIED_APPS=("$APP" "$EXTRACTED_APP")
 fi
 
