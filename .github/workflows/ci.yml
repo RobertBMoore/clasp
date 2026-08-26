@@ -118,6 +118,8 @@ jobs:
           ./script/tests/release_workflow_contract_test.sh
           bash ./script/tests/workflow_bash_assertion_test.sh
           ./script/tests/app_store_screenshot_test.sh
+          ./script/tests/app_review_evidence_test.sh
+          ./script/validate_app_review_evidence.sh --draft
           ./script/lib/validate_public_https_url.sh --self-test
           ./script/verify_direct_release.sh --self-test
           [[ ! -e Package.resolved && ! -L Package.resolved ]] \
