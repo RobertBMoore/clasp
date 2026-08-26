@@ -1,10 +1,70 @@
-# Mac App Store readiness (not submitted)
+# Mac App Store readiness and Guideline 2.1 response
 
-Status: **uploaded, processed, and selected; not ready to submit**. This is a custody checklist, not App Review acceptance evidence.
+Status: **rejected — Guideline 2.1 Information Needed**. App Review submission `4f60dde3-4ad3-4d0b-a21b-3cc63edd7453` concerns version/build `1.0.0 (8)`. The package was uploaded and processed, but processing is not App Review acceptance; the uploaded package SHA-256 remains `09dcc9361d7a95c5cb699507b7a5d381c3d925b88130c346aae2e3fe6d80ccb0`.
+
+This is a custody and evidence-gating checklist, not proof that a physical TestFlight run, latest-OS run, recording attachment, or resubmission has occurred. The owned response pack is [`APP_REVIEW_RESPONSE.md`](APP_REVIEW_RESPONSE.md), with the exact one-take physical-Mac storyboard in [`APP_REVIEW_RECORDING.md`](APP_REVIEW_RECORDING.md).
+
+## Current review state and live blockers
+
+- Rejected submission: `4f60dde3-4ad3-4d0b-a21b-3cc63edd7453`
+- Review reason: **Guideline 2.1 — Information Needed**
+- Reviewed version/build: `1.0.0 (8)`
+- Uploaded package SHA-256: `09dcc9361d7a95c5cb699507b7a5d381c3d925b88130c346aae2e3fe6d80ccb0`
+- Physical hardware fact available for the gated run: MacBook Pro `Mac16,5`, M4 Max, `arm64`, macOS `26.5.2` build `25F84`
+- Current latest macOS is `26.6.2`; no latest-OS run is claimed, and latest-OS proof remains gated.
+- Functions are region-consistent; China mainland is intentionally excluded from availability.
+
+Before resubmission, all of these remain explicit blockers:
+
+- [ ] Run the exact TestFlight build on a physical Mac and record the observed device, OS/version/build, and TestFlight build identity.
+- [ ] Capture and attach one privacy-safe, contiguous recording using [`APP_REVIEW_RECORDING.md`](APP_REVIEW_RECORDING.md); fill its attachment reference, size, duration, and SHA-256.
+- [ ] Close the macOS `26.6.2` latest-OS gate with physical TestFlight evidence. If the physical Mac is still on `26.5.2`, do not record the final take or resubmit.
+- [ ] Independently verify that the observed TestFlight build is `1.0.0 (8)` and that package custody still matches the full SHA-256 above.
+- [ ] Recheck live App Store Connect territories and preserve intentional China mainland exclusion.
+- [ ] Replace every `[PENDING ...]` field in the response pack only after evidence exists; perform final human/legal review.
+- [ ] Build the structured evidence bundle from [`APP_REVIEW_EVIDENCE.env`](APP_REVIEW_EVIDENCE.env), keep the recording out of this public repository and ordinary CI artifacts, and require `script/validate_app_review_evidence.sh --final` to pass immediately before the live reply/upload.
+
+## Exact complete App Review notes
+
+These notes are the canonical copy-paste body for the Guideline 2.1 response. They remain evidence-gated: do not submit them while a `[PENDING ...]` field remains, and do not treat their presence as proof that the physical/TestFlight/latest-OS gates passed.
+
+```text
+Clasp: Private Markdown Notes — Guideline 2.1 Information Needed response
+
+App Review submission: 4f60dde3-4ad3-4d0b-a21b-3cc63edd7453
+Version/build: 1.0.0 (8)
+Uploaded package SHA-256: 09dcc9361d7a95c5cb699507b7a5d381c3d925b88130c346aae2e3fe6d80ccb0
+Region recheck: [PENDING — REPLACE WITH `PASS_CHINA_MAINLAND_EXCLUDED` ONLY AFTER THE LIVE RECHECK]
+Trader recheck: [PENDING — REPLACE WITH `PASS_NOT_TRADER` ONLY AFTER THE LIVE RECHECK]
+
+Physical recording attachment:
+The requested recording is [PENDING — ATTACH ONE-TAKE RECORDING; DO NOT TREAT THIS AS COMPLETED PROOF]. Exact App Store Connect attachment reference: [PENDING]. Exact filename: [PENDING]. SHA-256: [PENDING]. Byte size and duration: [PENDING]. The recording must follow APP_REVIEW_RECORDING.md and show the TestFlight build on a physical Mac using synthetic fixtures only.
+
+Tested physical device and OS:
+No physical TestFlight run is claimed yet. The current physical Mac available for the gated run is MacBook Pro Mac16,5, M4 Max, arm64, macOS 26.5.2 build 25F84. This is inventory, not run evidence. The current latest macOS is 26.6.2, so final latest-OS proof remains gated. The actual recording fields are [PENDING — FILL FROM THE PHYSICAL TESTFLIGHT RUN].
+
+Purpose, audience, problem, and value:
+Clasp is a local-first notes and capture app for individual Mac users. It catches thoughts, links, selected text, images, clipboard snippets, call notes, and journal entries, then keeps them searchable on the Mac. It solves transient, scattered capture without requiring an account or sending note content to a service. Regular notes remain portable local Markdown files; a separate local encrypted Vault protects sensitive notes with macOS user-presence authentication before the Vault key is read.
+
+Setup, access, and sample data:
+No login, account, invitation, demo credential, or special server access is required. Open the TestFlight/Mac App Store build, complete local first-launch setup, create a regular Inbox note, inspect Page and exact Markdown views, search for APPLE-REVIEW-SYNTHETIC-001, and close/reopen to verify local persistence. Create a Vault note using the synthetic body VAULT-SYNTHETIC-ONLY-002, complete the normal macOS user-presence prompt without recording a password, lock the Vault, and verify locked content is not shown. For Store selected-content capture through macOS Services, use macOS Services > Create Note in Clasp or Create Secure Note in Clasp; otherwise use the synthetic clipboard fixture APPLE-REVIEW-CLIPBOARD-003. The Store build omits Accessibility-assisted selection shortcuts and does not request Accessibility access. Use synthetic data only, including https://example.invalid/apple-review; never enter private material.
+
+External services, data, authentication, payment, and AI:
+There is no login/account system, purchase, IAP, subscription, payment flow, backend, cloud sync, analytics, tracking, external AI, or note-content transmission. There is no public/cloud UGC hosting or moderation service. Regular notes are local Markdown; Vault data is local encrypted data protected by macOS Keychain and LocalAuthentication. Apple Vision performs image-text recognition locally. The Store build uses Apple frameworks/platform facilities only, including SwiftUI, AppKit, Vision, CryptoKit, LocalAuthentication, Keychain, NSServices, and App Sandbox. Mac App Store builds update only through the Mac App Store and contain no third-party updater.
+
+Regional consistency and China exclusion:
+The functions and behavior are region-consistent wherever the app is available, with no region-specific feature, backend, data, payment, or content path. China mainland is intentionally excluded from availability. Recheck the live territory selection before resubmission and preserve that exclusion.
+
+Regulated/protected-material applicability:
+The developer is not a trader for the applicable App Store Connect declaration. Clasp is not a regulated product or service and does not provide regulated decisioning. The recording, screenshots, and fixtures contain no protected third-party material; they use only the developer's app UI and synthetic review data.
+
+Evidence gate:
+The physical TestFlight run, latest-OS check, one-take recording, attachment reference, and recording checksum remain [PENDING]. Do not interpret this response as claiming that any of those gates has passed.
+```
 
 ## Build and account gates
 
-- [x] Verify live access to the Apple Developer Program team and the App Store Connect account. On 2026-08-24, Chrome showed Paper LLC team `R3Z7H2TRCB` and an active Free Apps Agreement. EU trader compliance remains incomplete; the Paid Apps Agreement remains unsigned and is not required for a free app with no paid content.
+- [x] Verify live access to the Apple Developer Program team and the App Store Connect account. On 2026-08-24, Chrome showed Paper LLC team `R3Z7H2TRCB` and an active Free Apps Agreement. Robert, acting as Account Holder, explicitly confirmed that Paper LLC is **not a trader** for this app; the live App Store Connect declaration still must be rechecked immediately before resubmission. The Paid Apps Agreement remains unsigned and is not required for a free app with no paid content.
 - [ ] Revalidate active membership, Account Holder/Admin authority, current agreements, and exact team immediately before generating credentials, packaging, or uploading; the dated browser observation above is not standing authorization or fresh release evidence.
 - [x] Register the explicit App ID / Bundle ID `com.robertmoore.personalnotepad` in the correct Apple Developer team; Apple Developer now lists it as `Clasp` under Paper LLC team `R3Z7H2TRCB`.
 - [x] Create the App Store Connect macOS app record using that exact registered Bundle ID. On 2026-08-24, Apple created `Clasp: Private Markdown Notes` for macOS under Paper LLC team `R3Z7H2TRCB`, Apple app ID `6804786714`, now aligned to version `1.0.0` in `Prepare for Submission`; sign-in is not required and release is manual. The permanent SKU was verified in the authenticated account and is intentionally withheld from this public repository.

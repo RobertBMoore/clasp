@@ -1,0 +1,12 @@
+Regular-note title: Apple Review Fixture — Local Markdown
+Regular-note body:
+# Apple Review Fixture
+Purpose: verify a local note.
+Audience: an individual Mac user.
+Token: APPLE-REVIEW-SYNTHETIC-001
+URL: https://example.invalid/apple-review
+
+Vault-note title: Apple Review Fixture — Encrypted Vault
+Vault-note body: Synthetic secret: VAULT-SYNTHETIC-ONLY-002
+
+Clipboard/Services fixture: APPLE-REVIEW-CLIPBOARD-003 — synthetic text only
