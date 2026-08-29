@@ -167,6 +167,46 @@ final class UICompletionSourceContractTests: XCTestCase {
         XCTAssertTrue(richEditor.contains("dismissReturningToTrigger()"))
     }
 
+    func testMainSplitViewKeepsNativeSearchAttachedDuringSidebarTransitions() throws {
+        let root = try source(at: "Sources/PersonalNotepad/Views/Main/MainRootView.swift")
+        let noteList = try source(at: "Sources/PersonalNotepad/Views/Main/NoteListView.swift")
+
+        XCTAssertTrue(root.contains("@State private var columnVisibility: NavigationSplitViewVisibility = .all"))
+        XCTAssertTrue(root.contains("NavigationSplitView(columnVisibility: $columnVisibility)"))
+        XCTAssertTrue(root.contains(".animation(.snappy(duration: 0.24, extraBounce: 0), value: columnVisibility)"))
+        XCTAssertEqual(
+            noteList.components(separatedBy: ".searchable(text: $query").count - 1,
+            1,
+            "One native search field must follow the content column without duplicate focus owners"
+        )
+    }
+
+    func testLockedVaultUsesOnePrimaryStateAndACompactListPlaceholder() throws {
+        let root = try source(at: "Sources/PersonalNotepad/Views/Main/MainRootView.swift")
+        let noteList = try source(at: "Sources/PersonalNotepad/Views/Main/NoteListView.swift")
+
+        XCTAssertTrue(root.contains("VaultLockedView(appState: appState)"))
+        XCTAssertTrue(noteList.contains("lockedVaultListPlaceholder"))
+        XCTAssertTrue(noteList.contains("Secure notes are hidden"))
+        XCTAssertFalse(noteList.contains("(\"Vault Locked\", AppIcon.Vault.locked"))
+    }
+
+    func testVisualQAFixtureCarriesTheGoogleDocsMarkdownReference() throws {
+        let fixture = try source(at: "Sources/PersonalNotepad/Support/VisualQAStores.swift")
+
+        for requiredSection in [
+            "Google Docs Copy Styling & Typography Reference",
+            "Heading Hierarchy Showcase",
+            "Text Formatting Options",
+            "Operational Task List",
+            "Data Tables & Matrix Displays",
+            "Callout Blocks & Editorial Quotes",
+            "Code Snippets & Technical Syntax",
+        ] {
+            XCTAssertTrue(fixture.contains(requiredSection), requiredSection)
+        }
+    }
+
     private func source(at relativePath: String) throws -> String {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

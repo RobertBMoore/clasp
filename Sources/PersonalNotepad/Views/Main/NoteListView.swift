@@ -99,10 +99,30 @@ struct NoteListView: View {
             if appState.isLoading {
                 ProgressView("Loading Notes…")
                     .controlSize(.small)
+            } else if destination == .vault && !appState.isVaultUnlocked {
+                lockedVaultListPlaceholder
             } else if items.isEmpty {
                 emptyState
             }
         }
+    }
+
+    private var lockedVaultListPlaceholder: some View {
+        VStack(spacing: 10) {
+            Image(systemName: AppIcon.Vault.locked)
+                .font(.title3.weight(.medium))
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+            Text("Secure notes are hidden")
+                .font(.callout.weight(.medium))
+            Text("Unlock from the editor to view them.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .multilineTextAlignment(.center)
+        .padding(24)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Secure notes are hidden. Unlock from the editor to view them.")
     }
 
     @ViewBuilder
@@ -178,7 +198,7 @@ private extension SidebarDestination {
         case .pinned:
             ("No Pinned Notes", AppIcon.Navigation.pinned, "Pin a note to keep it close at hand.")
         case .vault where !isVaultUnlocked:
-            ("Vault Locked", AppIcon.Vault.locked, "Unlock the Vault to see secure notes.")
+            ("Secure Notes Hidden", AppIcon.Vault.locked, "Unlock the Vault to see secure notes.")
         case .vault:
             ("No Vault Notes", AppIcon.Vault.secureDocument, "Create a secure Vault note to get started.")
         case .trash:

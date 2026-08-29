@@ -1790,7 +1790,18 @@ enum MarkdownSourcePresentation {
     }
 
     private static func checklistMarkerFont(style: MarkdownEditorPresentationStyle) -> NSFont {
-        .monospacedSystemFont(ofSize: style.bodyPointSize, weight: .regular)
+        // The six source characters in `- [ ] ` remain present and fixed-width
+        // so state toggles never reflow the document. Size the transparent run
+        // to one native checkbox plus the intended text gap instead of letting
+        // six body-sized monospace glyphs create an oversized blank gutter.
+        let referenceSize: CGFloat = 10
+        let reference = NSFont.monospacedSystemFont(ofSize: referenceSize, weight: .regular)
+        let referenceWidth = ("- [ ] " as NSString).size(withAttributes: [.font: reference]).width
+        let targetWidth = ClaspDesign.Metrics.checklistControlSize + ClaspDesign.Metrics.checklistTextGap
+        let resolvedSize = referenceWidth > 0
+            ? referenceSize * targetWidth / referenceWidth
+            : referenceSize
+        return .monospacedSystemFont(ofSize: resolvedSize, weight: .regular)
     }
 
     private static func applyFontTrait(_ trait: NSFontTraitMask, to storage: NSTextStorage, range: NSRange) {
