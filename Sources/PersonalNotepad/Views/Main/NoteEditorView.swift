@@ -219,7 +219,7 @@ struct NoteEditorView: View {
                         height: pickerPlacement.frame.height,
                         alignment: .top
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: ClaspDesign.Metrics.menuCornerRadius, style: .continuous))
                     .shadow(color: Color(nsColor: .shadowColor).opacity(0.2), radius: 10, y: 3)
                     .offset(x: pickerPlacement.frame.minX, y: pickerPlacement.frame.minY)
                     .transition(
@@ -231,7 +231,7 @@ struct NoteEditorView: View {
                 .zIndex(20)
             }
         }
-        .animation(.easeOut(duration: 0.12), value: showsParagraphStylePicker)
+        .animation(.easeOut(duration: ClaspDesign.Motion.menu), value: showsParagraphStylePicker)
         .clipped()
         }
     }
@@ -334,8 +334,14 @@ struct NoteEditorView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(.quaternary.opacity(0.25))
+        .padding(.vertical, ClaspDesign.Metrics.editorToolbarVerticalPadding)
+        .frame(minHeight: ClaspDesign.Metrics.editorToolbarHeight)
+        .background(ClaspDesign.Color.toolbarSurface)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(.separator.opacity(0.42))
+                .frame(height: 1)
+        }
         .accessibilityElement(children: .combine)
     }
 

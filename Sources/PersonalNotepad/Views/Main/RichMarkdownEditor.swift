@@ -196,15 +196,23 @@ final class MarkdownPageTextView: NSTextView {
             NSGraphicsContext.saveGraphicsState()
             let shadow = NSShadow()
             shadow.shadowColor = NSColor.shadowColor.withAlphaComponent(0.16)
-            shadow.shadowBlurRadius = 12
-            shadow.shadowOffset = NSSize(width: 0, height: -2)
+            shadow.shadowBlurRadius = ClaspDesign.Metrics.editorPageShadowRadius
+            shadow.shadowOffset = NSSize(width: 0, height: -1)
             shadow.set()
             NSColor.textBackgroundColor.setFill()
-            NSBezierPath(roundedRect: page, xRadius: 12, yRadius: 12).fill()
+            NSBezierPath(
+                roundedRect: page,
+                xRadius: ClaspDesign.Metrics.editorPageCornerRadius,
+                yRadius: ClaspDesign.Metrics.editorPageCornerRadius
+            ).fill()
             NSGraphicsContext.restoreGraphicsState()
 
             NSColor.separatorColor.withAlphaComponent(0.52).setStroke()
-            let border = NSBezierPath(roundedRect: page.insetBy(dx: 0.5, dy: 0.5), xRadius: 12, yRadius: 12)
+            let border = NSBezierPath(
+                roundedRect: page.insetBy(dx: 0.5, dy: 0.5),
+                xRadius: ClaspDesign.Metrics.editorPageCornerRadius,
+                yRadius: ClaspDesign.Metrics.editorPageCornerRadius
+            )
             border.lineWidth = 1
             border.stroke()
 
@@ -475,10 +483,16 @@ final class MarkdownPageTextView: NSTextView {
     }
 
     private var pageRect: NSRect {
-        let sideMargin: CGFloat = 12
+        let sideMargin = ClaspDesign.Metrics.editorCanvasInset
         let available = max(0, bounds.width - sideMargin * 2)
         let width = min(maximumPageWidth, available)
-        return NSRect(x: (bounds.width - width) / 2, y: 6, width: width, height: max(0, bounds.height - 12))
+        let topInset = ClaspDesign.Metrics.editorPageTopInset
+        return NSRect(
+            x: (bounds.width - width) / 2,
+            y: topInset,
+            width: width,
+            height: max(0, bounds.height - (topInset * 2))
+        )
     }
 
     private func updateResponsiveInsets() {
@@ -490,7 +504,10 @@ final class MarkdownPageTextView: NSTextView {
         }
         let page = pageRect
         let horizontal = max(12, page.minX + min(pageHorizontalPadding, max(12, page.width * 0.2)))
-        let inset = NSSize(width: horizontal, height: 30)
+        let inset = NSSize(
+            width: horizontal,
+            height: page.minY + ClaspDesign.Metrics.editorPageContentTopPadding
+        )
         if textContainerInset != inset { textContainerInset = inset }
     }
 
@@ -528,7 +545,8 @@ struct RichMarkdownEditor: NSViewRepresentable {
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
-        scrollView.drawsBackground = false
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = showsSource ? .textBackgroundColor : ClaspDesign.Color.editorCanvas
         scrollView.borderType = .noBorder
 
         let textView = MarkdownPageTextView(frame: .zero)
@@ -581,6 +599,7 @@ struct RichMarkdownEditor: NSViewRepresentable {
         coordinator.markdown = $markdown
         coordinator.scrollView = scrollView
         textView.insertionPointColor = .labelColor
+        scrollView.backgroundColor = showsSource ? .textBackgroundColor : ClaspDesign.Color.editorCanvas
 
         let resolvedStyle = MarkdownEditorPresentationStyle(style)
         let presentationChanged = resolvedStyle != coordinator.style || showsSource != coordinator.showsSource
@@ -1045,9 +1064,9 @@ struct RichStylePickerPlacement: Equatable {
 }
 
 enum RichStylePickerLayout {
-    static let idealSize = CGSize(width: 286, height: 422)
+    static let idealSize = ClaspDesign.Metrics.paragraphStylePickerSize
     // Keeps the panel's soft elevation shadow inside the editor pane too.
-    static let edgeInset: CGFloat = 16
+    static let edgeInset = ClaspDesign.Metrics.menuEdgeInset
     static let anchorGap: CGFloat = 6
     static let minimumSeparatedHeight: CGFloat = 180
 
@@ -1155,28 +1174,24 @@ struct RichFormattingBar: View {
     @State private var linkDestination = "https://"
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("Formatting")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("Stored as Markdown")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        HStack(spacing: ClaspDesign.Metrics.editorToolbarGroupSpacing) {
+            stylePicker
+            ViewThatFits(in: .horizontal) {
+                expandedControls
+                compactControls
             }
-
-            HStack(spacing: 0) {
-                stylePicker
-                ViewThatFits(in: .horizontal) {
-                    expandedControls.padding(.leading, 8)
-                    compactControls.padding(.leading, 7)
-                }
-            }
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(.quaternary.opacity(0.25))
+        .padding(.horizontal, ClaspDesign.Metrics.editorToolbarHorizontalPadding)
+        .padding(.vertical, ClaspDesign.Metrics.editorToolbarVerticalPadding)
+        .background(ClaspDesign.Color.toolbarSurface)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(.separator.opacity(0.42))
+                .frame(height: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Markdown formatting")
         .onChange(of: isStylePickerPresented) { _, isPresented in
             guard !isPresented, case .option = stylePickerFocus.wrappedValue else { return }
             stylePickerFocus.wrappedValue = .trigger
@@ -1184,22 +1199,22 @@ struct RichFormattingBar: View {
     }
 
     private var expandedControls: some View {
-        HStack(spacing: 8) {
-            Divider().frame(height: 26)
+        HStack(spacing: ClaspDesign.Metrics.editorToolbarGroupSpacing) {
+            Divider().frame(height: 20).padding(.horizontal, 2)
             formatButton("Bold", symbol: AppIcon.Editing.bold, command: .bold)
             formatButton("Italic", symbol: AppIcon.Editing.italic, command: .italic)
             formatButton("Strike", symbol: "strikethrough", command: .strikethrough)
             formatButton("Code", symbol: "chevron.left.forwardslash.chevron.right", command: .inlineCode)
-            Divider().frame(height: 26)
+            Divider().frame(height: 20).padding(.horizontal, 2)
             listMenu
             insertMenu
             linkButton
         }
-        .padding(.vertical, 1)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private var compactControls: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: ClaspDesign.Metrics.editorToolbarGroupSpacing) {
             Menu {
                 Button("Bold") { send(.bold) }
                 Button("Italic") { send(.italic) }
@@ -1207,7 +1222,7 @@ struct RichFormattingBar: View {
                 Button("Inline Code") { send(.inlineCode) }
             } label: {
                 Image(systemName: "textformat")
-                    .frame(minWidth: 24, minHeight: 26)
+                    .claspToolbarControlSurface()
             }
             .menuStyle(.borderlessButton)
             .help("Text formatting")
@@ -1236,10 +1251,8 @@ struct RichFormattingBar: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-            .frame(minHeight: 26)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
+        .buttonStyle(ClaspToolbarButtonStyle(width: 96))
         .focused(stylePickerFocus, equals: .trigger)
         .background {
             GeometryReader { proxy in
@@ -1272,7 +1285,7 @@ struct RichFormattingBar: View {
             Button("Checklist") { send(.checklist) }
         } label: {
             Image(systemName: AppIcon.Editing.bulletedList)
-                .frame(minWidth: 24, minHeight: 26)
+                .claspToolbarControlSurface()
         }
         .menuStyle(.borderlessButton)
         .help("Lists")
@@ -1286,7 +1299,7 @@ struct RichFormattingBar: View {
             Button("Horizontal Rule") { send(.horizontalRule) }
         } label: {
             Image(systemName: "plus")
-                .frame(minWidth: 24, minHeight: 26)
+                .claspToolbarControlSurface()
         }
         .menuStyle(.borderlessButton)
         .help("Insert Markdown block")
@@ -1296,10 +1309,8 @@ struct RichFormattingBar: View {
     private func formatButton(_ help: String, symbol: String, command: RichEditorCommand) -> some View {
         Button { send(command) } label: {
             Image(systemName: symbol)
-                .frame(minWidth: 24, minHeight: 26)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
+        .buttonStyle(ClaspToolbarButtonStyle())
         .help(help)
         .accessibilityLabel(help)
     }
@@ -1307,10 +1318,8 @@ struct RichFormattingBar: View {
     private var linkButton: some View {
         Button { showingLink.toggle() } label: {
             Image(systemName: AppIcon.Editing.link)
-                .frame(minWidth: 24, minHeight: 26)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
+        .buttonStyle(ClaspToolbarButtonStyle())
         .help("Add Link")
         .accessibilityLabel("Add Link")
         .popover(isPresented: $showingLink) {
@@ -1474,7 +1483,7 @@ struct RichParagraphStylePicker: View {
                 .scrollIndicators(.automatic)
                 .onChange(of: focusedOptionID) { _, optionID in
                     guard let optionID else { return }
-                    withAnimation(.easeOut(duration: 0.1)) {
+                    withAnimation(.easeOut(duration: ClaspDesign.Motion.quick)) {
                         proxy.scrollTo(optionID, anchor: .center)
                     }
                 }
@@ -1482,11 +1491,11 @@ struct RichParagraphStylePicker: View {
         }
         .background(
             .regularMaterial,
-            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            in: RoundedRectangle(cornerRadius: ClaspDesign.Metrics.menuCornerRadius, style: .continuous)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: ClaspDesign.Metrics.menuCornerRadius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: ClaspDesign.Metrics.menuCornerRadius, style: .continuous)
                 .stroke(.separator.opacity(0.72), lineWidth: 1)
         }
         .focusSection()

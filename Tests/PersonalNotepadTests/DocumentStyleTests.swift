@@ -5,6 +5,46 @@ import XCTest
 
 @MainActor
 final class DocumentStyleTests: XCTestCase {
+    func testClaspDesignSystemKeepsEditorAndSettingsGeometryCoherent() {
+        XCTAssertEqual(ClaspDesign.Metrics.editorToolbarControlHeight, 30)
+        XCTAssertEqual(ClaspDesign.Metrics.editorToolbarIconWidth, 30)
+        XCTAssertEqual(ClaspDesign.Metrics.editorToolbarCornerRadius, 7)
+        XCTAssertEqual(ClaspDesign.Metrics.editorToolbarGroupSpacing, 6)
+        XCTAssertEqual(ClaspDesign.Metrics.editorToolbarHeight, 48)
+        XCTAssertEqual(ClaspDesign.Metrics.editorCanvasInset, 16)
+        XCTAssertEqual(ClaspDesign.Metrics.editorPageCornerRadius, 10)
+        XCTAssertEqual(ClaspDesign.Metrics.menuCornerRadius, 12)
+        XCTAssertGreaterThanOrEqual(ClaspDesign.Metrics.editorToolbarControlHeight, 28)
+
+        XCTAssertEqual(
+            RichStylePickerLayout.idealSize,
+            ClaspDesign.Metrics.paragraphStylePickerSize
+        )
+        XCTAssertEqual(
+            RichStylePickerLayout.edgeInset,
+            ClaspDesign.Metrics.menuEdgeInset
+        )
+        XCTAssertEqual(
+            SettingsLayoutMetrics.pagePadding,
+            ClaspDesign.Metrics.settingsPagePadding
+        )
+    }
+
+    func testEditorCanvasColorResolvesForTheActiveMacOSAppearance() throws {
+        let lightAppearance = try XCTUnwrap(NSAppearance(named: .aqua))
+        let darkAppearance = try XCTUnwrap(NSAppearance(named: .darkAqua))
+        var light: NSColor?
+        var dark: NSColor?
+        lightAppearance.performAsCurrentDrawingAppearance {
+            light = ClaspDesign.Color.editorCanvas.usingColorSpace(.deviceRGB)
+        }
+        darkAppearance.performAsCurrentDrawingAppearance {
+            dark = ClaspDesign.Color.editorCanvas.usingColorSpace(.deviceRGB)
+        }
+
+        XCTAssertNotEqual(light, dark)
+    }
+
     func testDocumentFontChoicesResolveOnlyThroughMacOSSystemDesigns() {
         XCTAssertEqual(
             DocumentFontFamily.allCases.map(\.title),

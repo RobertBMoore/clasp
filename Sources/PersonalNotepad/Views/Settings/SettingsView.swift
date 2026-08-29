@@ -49,7 +49,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 /// moving its controls when a tab, preset, or optional warning changes.
 enum SettingsLayoutMetrics {
     static let fixedContentSize = CGSize(width: 850, height: 560)
-    static let pagePadding: CGFloat = 24
+    static let pagePadding = ClaspDesign.Metrics.settingsPagePadding
     static let headerHeight: CGFloat = 52
     static let documentControlsWidth: CGFloat = 350
     static let documentColumnSpacing: CGFloat = 20
@@ -772,9 +772,18 @@ private struct PreviewMetric: View {
 
 extension View {
     func settingsCardSurface() -> some View {
-        background(.quaternary.opacity(0.16), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        background(
+            .quaternary.opacity(0.16),
+            in: RoundedRectangle(
+                cornerRadius: ClaspDesign.Metrics.settingsCardCornerRadius,
+                style: .continuous
+            )
+        )
             .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(
+                    cornerRadius: ClaspDesign.Metrics.settingsCardCornerRadius,
+                    style: .continuous
+                )
                     .stroke(.separator.opacity(0.45), lineWidth: 1)
             }
     }
