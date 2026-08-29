@@ -54,6 +54,62 @@ final class MarkdownSourceEditingTests: XCTestCase {
         XCTAssertEqual(fence.markerRanges.map(string.substring(with:)), ["```swift", "```"])
     }
 
+    func testAnalyzerRecognizesGFMTableOutsideFencesWithoutChangingSource() throws {
+        let source = """
+        Before
+
+        | Name | Status |
+        | :--- | ---: |
+        | Alpha | Ready |
+        | Beta | **Review** |
+
+        ```md
+        | Not | A table |
+        | --- | --- |
+        ```
+        After
+        """
+        let originalBytes = Data(source.utf8)
+        let string = source as NSString
+        let tokens = MarkdownSourceAnalyzer.tokens(in: source)
+        let table = try XCTUnwrap(tokens.first { $0.kind == .table })
+
+        XCTAssertEqual(
+            string.substring(with: table.range),
+            "| Name | Status |\n| :--- | ---: |\n| Alpha | Ready |\n| Beta | **Review** |\n"
+        )
+        XCTAssertEqual(string.substring(with: table.contentRange), string.substring(with: table.range))
+        XCTAssertEqual(table.markerRanges.map(string.substring(with:)), [
+            "|", "|", "|",
+            "| :--- | ---: |",
+            "|", "|", "|",
+            "|", "|", "|",
+        ])
+
+        let storage = NSTextStorage(string: source)
+        let presentation = MarkdownSourcePresentation.applyDocument(
+            to: storage,
+            style: MarkdownEditorPresentationStyle(.balanced),
+            showsSource: false
+        )
+        XCTAssertEqual(storage.string, source)
+        XCTAssertEqual(Data(storage.string.utf8), originalBytes)
+        let tableDecorations = presentation.blockDecorations.filter { $0.kind == .table }
+        XCTAssertEqual(tableDecorations.map(\.kind), [.table])
+        XCTAssertEqual(tableDecorations.map(\.range), [table.range])
+        let tableDecoration = try XCTUnwrap(tableDecorations.first)
+        XCTAssertEqual(tableDecoration.headerRange.map(string.substring(with:)), "| Name | Status |")
+        for markerRange in table.markerRanges {
+            let font = try XCTUnwrap(storage.attribute(.font, at: markerRange.location, effectiveRange: nil) as? NSFont)
+            let color = try XCTUnwrap(storage.attribute(.foregroundColor, at: markerRange.location, effectiveRange: nil) as? NSColor)
+            XCTAssertLessThan(font.pointSize, 5)
+            XCTAssertTrue(color.isEqual(NSColor.clear))
+        }
+        let headerTextRange = string.range(of: "Name")
+        let headerFont = try XCTUnwrap(storage.attribute(.font, at: headerTextRange.location, effectiveRange: nil) as? NSFont)
+        XCTAssertTrue(NSFontManager.shared.traits(of: headerFont).contains(.boldFontMask))
+    }
+
     func testChecklistStateToggleIsFenceAwareSourceExactAndSelectionStable() throws {
         let source = "👋 pre\r\n\t*  [ ] task cafe\u{301}\r\n  + [X]\tDone 😀\r\n```md\r\n- [ ] code only\r\n```\r\nordinary [ ]\r\npost"
         let string = source as NSString
@@ -832,7 +888,7 @@ final class MarkdownSourceEditingTests: XCTestCase {
     }
 
     func testPageBlockDecorationsExposeSynchronizedAccessibilitySemantics() {
-        let source = "Before\n---\n```swift\nlet launch = true\n```\nAfter"
+        let source = "Before\n---\n```swift\nlet launch = true\n```\nAfter\n| Item | State |\n| --- | --- |\n| Editor | Ready |"
         let textView = MarkdownPageTextView(frame: NSRect(x: 0, y: 0, width: 480, height: 320))
         textView.configurePage(style: .balanced, showsSource: false)
         textView.string = source
@@ -845,7 +901,7 @@ final class MarkdownSourceEditingTests: XCTestCase {
 
         let fullRange = NSRange(location: 0, length: (source as NSString).length)
         let annotations = textView.accessibilityBlockAnnotations(for: fullRange)
-        XCTAssertEqual(annotations.map(\.label), ["Separator", "Code block"])
+        XCTAssertEqual(annotations.map(\.label), ["Separator", "Code block", "Table"])
         XCTAssertEqual(annotations.map(\.range), decorations.map(\.range))
 
         textView.configurePage(style: .balanced, showsSource: true)

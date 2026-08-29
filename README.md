@@ -88,7 +88,7 @@ Vault notes are isolated from Inbox, Pinned, and regular tag filters. While the 
 
 The note editor opens in **Page** mode. **Page / Markdown** are two views of the same canonical Markdown source: Page applies readable typography in place, while Markdown exposes the exact portable source. Edits in either view update that source, with no hidden rich-text copy.
 
-Page mode recognizes common AI-generated Markdown structures, including headings, bold, italic, strikethrough, links, bulleted and numbered lists, checklists, block quotes, inline and fenced code, and horizontal rules. Unknown Markdown syntax is preserved conservatively as source text instead of being discarded.
+Page mode recognizes common AI-generated Markdown structures, including headings, bold, italic, strikethrough, links, bulleted and numbered lists, checklists, block quotes, inline and fenced code, horizontal rules, and GFM tables. Unknown Markdown syntax is preserved conservatively as source text instead of being discarded.
 
 Exceptionally large notes remain fully editable and source-exact. Above Clasp's live semantic-styling limit, Page keeps the selected base typography while reducing semantic decoration so typing and mode changes remain responsive.
 
