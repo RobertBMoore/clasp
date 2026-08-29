@@ -128,6 +128,31 @@ final class RichMarkdownEditorInteractionTests: XCTestCase {
         }
     }
 
+    func testInlineStylesPreserveNativeInteractionAtLineStartAndEnd() throws {
+        let locations: [(name: String, block: String)] = [
+            ("start", "Selected café 👩🏽‍💻 followed by stable copy"),
+            ("end", "Stable copy before Selected café 👩🏽‍💻"),
+        ]
+        let commands: [(name: String, value: RichEditorCommand)] = [
+            ("bold", .bold),
+            ("italic", .italic),
+            ("strikethrough", .strikethrough),
+            ("inline code", .inlineCode),
+            ("link", .link("https://example.com/reference")),
+        ]
+
+        for location in locations {
+            for command in commands {
+                try assertInteractionContracts(for: .init(
+                    name: "\(command.name) at \(location.name)",
+                    command: command.value,
+                    targetBlock: location.block,
+                    selectionText: "Selected café 👩🏽‍💻"
+                ))
+            }
+        }
+    }
+
     func testNativePageChecklistTogglePreservesExactSourceSelectionViewportLayoutAndUndoRedo() throws {
         let task = "- [ ] Ship the accessible release"
         let source = commandSource(for: .init(
@@ -157,6 +182,14 @@ final class RichMarkdownEditorInteractionTests: XCTestCase {
         ])
         let control = try XCTUnwrap(
             harness.textView.visibleChecklistControls.first { $0.tag == item.stateRange.location }
+        )
+        let firstContentCharacter = NSRange(location: item.contentRange.location, length: 1)
+        let contentRect = try harness.documentRect(for: firstContentCharacter)
+        XCTAssertEqual(
+            contentRect.minX - control.frame.maxX,
+            ClaspDesign.Metrics.checklistTextGap,
+            accuracy: 1.25,
+            "Checklist copy should sit on the same compact grid as Google Docs"
         )
         XCTAssertEqual(control.state, .off)
         XCTAssertEqual(control.accessibilityRole(), .checkBox)
@@ -347,6 +380,29 @@ final class RichMarkdownEditorInteractionTests: XCTestCase {
         XCTAssertEqual(harness.textView.visibleChecklistControls.map(\.tag), [items[1].stateRange.location])
         XCTAssertEqual(harness.textView.visibleChecklistControls.first?.state, .on)
         XCTAssertEqual(harness.textView.visibleChecklistControls.first?.accessibilityLabel(), "Bottom visible task")
+    }
+
+    func testLiveScrollNotificationRefreshesChecklistControlsWithoutManualIntervention() throws {
+        let source = (0..<90).map { index in
+            switch index {
+            case 72: "- [x] Live visible task"
+            default: String(format: "Paragraph %03d with stable scrolling content.", index)
+            }
+        }.joined(separator: "\n")
+        let item = try XCTUnwrap(MarkdownSourceAnalyzer.checklistItems(in: source).first)
+        let harness = RichEditorInteractionHarness(
+            source: source,
+            showsSource: false,
+            viewportSize: NSSize(width: 500, height: 220)
+        )
+        defer { harness.close() }
+
+        XCTAssertTrue(harness.textView.visibleChecklistControls.isEmpty)
+        try harness.centerViewport(on: item.lineRange)
+        harness.settleLayoutKeepingCurrentViewport()
+
+        XCTAssertEqual(harness.textView.visibleChecklistControls.map(\.tag), [item.stateRange.location])
+        XCTAssertEqual(harness.textView.visibleChecklistControls.first?.state, .on)
     }
 
     func testChecklistControlFitsFixedMarkerGeometryForEveryDocumentFontFamily() throws {

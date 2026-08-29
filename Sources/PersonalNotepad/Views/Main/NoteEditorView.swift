@@ -48,8 +48,9 @@ struct NoteEditorView: View {
 
             VStack(alignment: .leading, spacing: 0) {
             editorHeader
-            .padding(.horizontal, 20)
-            .padding(.top, 18)
+            .padding(.horizontal, ClaspDesign.Metrics.editorHeaderHorizontalPadding)
+            .padding(.top, ClaspDesign.Metrics.editorHeaderTopPadding)
+            .padding(.bottom, ClaspDesign.Metrics.editorHeaderBottomPadding)
 
             if !draft.attachments.isEmpty {
                 AttachmentGallery(attachments: draft.attachments)
@@ -238,15 +239,15 @@ struct NoteEditorView: View {
 
     private var editorHeader: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
                 titleField
                 vaultBadge
-                Spacer(minLength: 8)
+                Spacer(minLength: 16)
                 editorModePicker
                 documentStyleButton
             }
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
                     titleField
                     vaultBadge
@@ -264,6 +265,8 @@ struct NoteEditorView: View {
         TextField("Title", text: $draft.title)
             .textFieldStyle(.plain)
             .font(.title2.weight(.semibold))
+            .lineLimit(1)
+            .padding(.vertical, 2)
             .frame(minWidth: 160)
             .layoutPriority(1)
             .accessibilityLabel("Note title")
@@ -288,9 +291,12 @@ struct NoteEditorView: View {
             ForEach(EditorMode.allCases) { Text($0.rawValue).tag($0) }
         }
         .pickerStyle(.segmented)
-        .controlSize(.large)
+        .controlSize(.regular)
         .labelsHidden()
-        .frame(width: 190)
+        .frame(
+            width: ClaspDesign.Metrics.editorModePickerWidth,
+            height: ClaspDesign.Metrics.editorHeaderControlHeight
+        )
         .help("Switch between the document page and its stored Markdown source")
         .accessibilityLabel("Editor mode")
     }
@@ -311,10 +317,8 @@ struct NoteEditorView: View {
             showsDocumentStyle.toggle()
         } label: {
             Image(systemName: "textformat.size")
-                .frame(width: 20, height: 20)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
+        .buttonStyle(ClaspToolbarButtonStyle())
         .help("Document Style")
         .accessibilityLabel("Document Style")
         .accessibilityHint("Adjust how Markdown is presented without changing the Markdown")

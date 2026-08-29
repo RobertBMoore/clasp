@@ -3,6 +3,7 @@ import SwiftUI
 struct MainRootView: View {
     let appState: AppState
     @State private var destination: SidebarDestination? = .inbox
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 #if CLASP_VISUAL_QA
     // The separately bundled visual-QA app uses only synthetic, memory-backed
     // notes. Select the primary fixture deterministically so screenshot review
@@ -15,7 +16,7 @@ struct MainRootView: View {
     @State private var shortcutPreferences = GlobalHotKeyPreferences.shared
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(appState: appState, selection: $destination)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 210)
         } content: {
@@ -30,6 +31,7 @@ struct MainRootView: View {
         } detail: {
             detail
         }
+        .animation(.snappy(duration: 0.24, extraBounce: 0), value: columnVisibility)
         .overlay(alignment: .bottom) {
             if let message = appState.statusMessage {
                 Text(message)

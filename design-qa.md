@@ -1,5 +1,43 @@
 # Clasp document-style visual QA
 
+## Google Docs editor polish and sidebar-search acceptance
+
+Date: 2026-08-29
+
+### Sources and implementation captures
+
+- Google Docs checklist reference: `artifacts/google-doc-reference-2026-08-29/04-checklist.jpg` (1728 x 906 pixels).
+- User-provided collapsed-sidebar/search target: `/var/folders/nx/6dvbxncx749gjsx418vtyv6m0000gn/T/codex-clipboard-5d9dca48-4841-4e9b-b808-7723d2670602.png` (2590 x 1620 pixels).
+- Final Clasp checklist capture: `artifacts/editor-google-doc-polish-2026-08-29/03-checklist-spacing-verified.png` (2560 x 1988 pixels, 1280 x 994-point native window at 2x density).
+- Final Clasp collapsed-sidebar capture: `artifacts/editor-google-doc-polish-2026-08-29/02-editor-page-sidebar-closed.png` (2560 x 1988 pixels, same native window and density).
+
+The two reference/implementation pairs were opened together in the same comparison input. The viewport sizes differ because the Google Docs source and user screenshot were captured from different products and windows; comparison therefore focused on the requested component geometry, hierarchy, and stable states rather than claiming pixel-identical chrome.
+
+### Full and focused comparison
+
+- The imported memory-only visual-QA note exercises headings 1–6, emphasis, strike, inline code, a link, nested bullets, numbered items, native checklists, a table, a blockquote, and fenced JSON while leaving production note storage untouched.
+- Clasp's checklist now matches the source's compact control-to-copy relationship: an 18-point native checkbox plus a 9-point text gap. Checked and unchecked controls remain visible in dark appearance and expose their task labels and values to accessibility.
+- The note title, Page/Markdown control, document-style button, and formatting toolbar have separate vertical breathing room and a consistent 30-point control rhythm. The mode control no longer crowds the toolbar below it.
+- Collapsing or expanding the navigation sidebar keeps one native search owner. The search field remains in the trailing toolbar position while the split-view columns animate with a 0.24-second snappy transition, avoiding duplicate fields, focus handoff, or a jump between unrelated containers.
+- The locked Vault list column now uses a compact secondary placeholder, while the detail pane owns the single primary locked state and unlock action. This removes the duplicated hero message shown in the reported screenshot.
+
+### Functional editor QA
+
+- Inline formatting was exercised for bold, italic, strikethrough, inline code, and links at the beginning, middle, and end of text. Only the selected UTF-16 range changes; source bytes outside the edit remain exact.
+- Paragraph formatting was exercised for body and headings 1–6 at the beginning, middle, and end of copy. Partial selections are isolated onto their own Markdown line without rewriting surrounding content.
+- The native AppKit harness verifies selection, viewport, unrelated line geometry, Page/Markdown round trips, undo/redo, long documents, live-scroll checklist virtualization, and the exact checkbox gap.
+- The full local suite passed 197/197 tests. The production release build completed successfully, and the separately bundled memory-only visual-QA app passed strict deep ad-hoc signature validation.
+
+### Findings and iteration history
+
+| Pass | Finding | Resolution |
+| --- | --- | --- |
+| Initial live checklist capture | **P2:** the new compact transparent marker geometry exposed a latent live-window coordinate bug: task text was visible but native checkbox subviews were not. | Fixed visibility calculation to use the real text-view visible rect in an on-screen window, with deterministic clip-bounds fallback for headless tests. Added a live-scroll regression test. |
+| Final checklist comparison | Checkbox state, alignment, contrast, and text gap match the requested compact document pattern; no P0–P2 defect remains. | Passed. |
+| Collapsed-sidebar comparison | Search remains naturally placed in the trailing toolbar and the content expansion is native and balanced; no duplicate search owner or final-state jump remains. | Passed. |
+
+Final result: passed
+
 ## Build 8 acceptance supplement
 
 Date: 2026-08-24

@@ -25,21 +25,86 @@ private enum VisualQAData {
         return [
             Note(
                 id: UUID(uuidString: "11111111-1111-4111-8111-111111111111")!,
-                title: "Editor quality check",
+                title: "Google Docs styling reference",
                 body: """
-                # Editor quality check
+                # Google Docs Copy Styling & Typography Reference
 
-                A source-exact page with **clear hierarchy** and *stable editing*.
+                *A comprehensive visual showcase of heading hierarchy, inline text formatting, list structures, tables, callouts, and technical syntax.*
 
-                | Element | Result |
-                | --- | --- |
-                | Markdown | Preserved |
-                | Page mode | Polished |
+                This reference document demonstrates a broad range of copy styling capabilities. It serves as both a design-system showcase and a practical template for constructing clear, modern documents from portable Markdown.
 
-                - [x] Selection stays visible
-                - [ ] Final visual review
+                ## Heading Hierarchy Showcase
+
+                Headings establish document structure and visual balance. The levels below create clear scanning markers without changing the stored Markdown.
+
+                # Heading Level 1: Primary Section Title
+
+                ## Heading Level 2: Secondary Subsection Header
+
+                ### Heading Level 3: Component & Feature Group
+
+                #### Heading Level 4: Granular Topic
+
+                ##### Heading Level 5: Supporting Detail
+
+                ###### Heading Level 6: Technical Annotation
+
+                ## Text Formatting Options
+
+                - **Bold Weight:** Used for strong emphasis, key metrics, or primary labels.
+                - *Italic Style:* Applied for secondary commentary, publication titles, or terminology.
+                - ***Bold & Italic Combination:*** Used for critical highlights.
+                - ~~Strikethrough Text:~~ Indicates deprecated or completed material.
+                - `Inline Code Formatting`: Ideal for API endpoints, variables, or keyboard shortcuts.
+                - [Hyperlink Integration](https://example.com/docs): A portable external reference.
+
+                ## Lists & Outline Structures
+
+                ### Unordered Bulleted List
+
+                - **Core Feature Analysis:** Quantitative measurement of document engagement.
+                - **Typography Rationale:** A clean, legible system font for screen reading.
+                  - Nested supporting research detail.
+                  - Nested implementation guidance.
+                - **Responsive Layout:** A continuous document canvas across window sizes.
+
+                ### Ordered Numbered List
+
+                1. **Define Document Intent:** Identify the audience and purpose.
+                2. **Establish Visual Rationale:** Select a cohesive hierarchy and spacing rhythm.
+                3. **Structure Content:** Map headings logically from level 1 through level 6.
+                4. **Final Polish:** Audit balance, alignment, and reading flow.
+
+                ### Operational Task List
+
+                - [x] Complete typography and Markdown preservation audit
+                - [ ] Configure document metadata and table styling rules
+                - [ ] Review contrast ratios and keyboard accessibility
+
+                ## Data Tables & Matrix Displays
+
+                | Asset Category | Specification | Primary Status | Completion |
+                | --- | --- | --- | --- |
+                | Typography | System Document | Active | Complete |
+                | Color System | Semantic adaptive colors | Approved | Complete |
+                | Table Formatting | Subtle header and borders | Active | In progress |
+                | Markdown | Source-exact storage | Verified | Complete |
+
+                ## Callout Blocks & Editorial Quotes
+
+                > **Executive Design Principle:** Clear visual hierarchy and intentional typography reduce cognitive load and improve reading comprehension.
+
+                ## Code Snippets & Technical Syntax
+
+                ```json
+                {
+                  "system": "Clasp Markdown Document Engine",
+                  "documentMode": "PAGE",
+                  "sourceExact": true
+                }
+                ```
                 """,
-                tags: ["editor", "visual"],
+                tags: ["design", "editor", "reference"],
                 isPinned: true,
                 createdAt: now.addingTimeInterval(-86_400),
                 updatedAt: now.addingTimeInterval(-420),

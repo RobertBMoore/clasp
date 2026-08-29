@@ -8,6 +8,12 @@ import SwiftUI
 /// note's Markdown source.
 enum ClaspDesign {
     enum Metrics {
+        static let editorHeaderHorizontalPadding: CGFloat = 20
+        static let editorHeaderTopPadding: CGFloat = 18
+        static let editorHeaderBottomPadding: CGFloat = 15
+        static let editorHeaderControlHeight: CGFloat = 30
+        static let editorModePickerWidth: CGFloat = 188
+
         static let editorToolbarControlHeight: CGFloat = 30
         static let editorToolbarIconWidth: CGFloat = 30
         static let editorToolbarCornerRadius: CGFloat = 7
@@ -21,6 +27,12 @@ enum ClaspDesign {
         static let editorPageContentTopPadding: CGFloat = 36
         static let editorPageCornerRadius: CGFloat = 10
         static let editorPageShadowRadius: CGFloat = 8
+
+        /// Page-mode task markers keep their exact Markdown bytes in TextKit,
+        /// but present a native control on a compact document grid. These two
+        /// values define the visible checkbox and its gap to the task copy.
+        static let checklistControlSize: CGFloat = 18
+        static let checklistTextGap: CGFloat = 9
 
         static let paragraphStylePickerSize = CGSize(width: 286, height: 422)
         static let menuEdgeInset: CGFloat = 16

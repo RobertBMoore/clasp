@@ -445,34 +445,55 @@ final class MarkdownPageTextView: NSTextView {
 
         layoutManager.ensureLayout(for: textContainer)
         let origin = textContainerOrigin
-        // NSClipView bounds are already expressed in document coordinates and
-        // remain valid in headless test hosts where `visibleRect` may be empty.
-        let viewportRect = enclosingScrollView?.contentView.bounds ?? visibleRect
+        // `visibleRect` converts the clip view into this text view's local
+        // coordinates. That conversion matters when AppKit vertically aligns
+        // the document with a negative clip origin during split-view layout.
+        // Headless harnesses may report an empty visibleRect, so retain the
+        // clip-view bounds as their deterministic fallback.
+        let localVisibleRect = visibleRect
+        let usesConvertedViewport = window?.isVisible == true
+            && localVisibleRect.width > 0
+            && localVisibleRect.height > 0
+        let viewportRect = usesConvertedViewport
+            ? localVisibleRect
+            : (enclosingScrollView?.contentView.bounds ?? localVisibleRect)
         let expandedVisibleRect = viewportRect.insetBy(dx: 0, dy: -40)
-        let containerVisibleRect = expandedVisibleRect.offsetBy(dx: -origin.x, dy: -origin.y)
-        let visibleGlyphRange = layoutManager.glyphRange(
-            forBoundingRect: containerVisibleRect,
-            in: textContainer
-        )
-        let visibleCharacterRange = layoutManager.characterRange(
-            forGlyphRange: visibleGlyphRange,
-            actualGlyphRange: nil
-        )
-        let visibleDecorations = Self.checklistDecorations(
-            checklistDecorations,
-            intersecting: visibleCharacterRange
-        ).filter {
-            NSMaxRange($0.markerRange) <= storage.length
-                && NSMaxRange($0.contentRange) <= storage.length
+        // Resolve visibility from each task line's actual laid-out rectangle.
+        // `glyphRange(forBoundingRect:)` can lag behind NSTextView's lazy
+        // document sizing during SwiftUI split-view transitions, which made
+        // on-screen controls disappear even though their text was visible.
+        var visibleItems: [(
+            decoration: MarkdownPageChecklistDecoration,
+            glyphRange: NSRange,
+            lineRect: NSRect
+        )] = []
+        visibleItems.reserveCapacity(min(checklistDecorations.count, 24))
+        for decoration in checklistDecorations {
+            guard NSMaxRange(decoration.markerRange) <= storage.length,
+                  NSMaxRange(decoration.contentRange) <= storage.length else { continue }
+            let glyphRange = layoutManager.glyphRange(
+                forCharacterRange: decoration.markerRange,
+                actualCharacterRange: nil
+            )
+            guard glyphRange.length > 0 else { continue }
+            let lineRect = layoutManager.lineFragmentUsedRect(
+                forGlyphAt: glyphRange.location,
+                effectiveRange: nil
+            )
+            let documentLineRect = lineRect.offsetBy(dx: origin.x, dy: origin.y)
+            if documentLineRect.maxY < expandedVisibleRect.minY { continue }
+            if documentLineRect.minY > expandedVisibleRect.maxY { break }
+            visibleItems.append((decoration, glyphRange, lineRect))
         }
-        let visibleLocations = Set(visibleDecorations.map(\.stateRange.location))
+        let visibleLocations = Set(visibleItems.map { $0.decoration.stateRange.location })
 
         let staleLocations = checklistButtons.keys.filter { !visibleLocations.contains($0) }
         for location in staleLocations {
             checklistButtons.removeValue(forKey: location)?.removeFromSuperview()
         }
 
-        for decoration in visibleDecorations {
+        for item in visibleItems {
+            let decoration = item.decoration
             let button = checklistButtons[decoration.stateRange.location] ?? makeChecklistButton()
             button.tag = decoration.stateRange.location
             let previousState = button.state
@@ -491,28 +512,20 @@ final class MarkdownPageTextView: NSTextView {
             )
             button.toolTip = decoration.isChecked ? "Mark as incomplete" : "Mark as complete"
 
-            let glyphRange = layoutManager.glyphRange(
-                forCharacterRange: decoration.markerRange,
-                actualCharacterRange: nil
-            )
-            guard glyphRange.length > 0 else {
-                button.isHidden = true
-                continue
-            }
-            let lineRect = layoutManager.lineFragmentUsedRect(
-                forGlyphAt: glyphRange.location,
-                effectiveRange: nil
-            )
             var markerRect = layoutManager.boundingRect(
-                forGlyphRange: glyphRange,
+                forGlyphRange: item.glyphRange,
                 in: textContainer
             )
             markerRect.origin.x += origin.x
             markerRect.origin.y += origin.y
-            let controlSize = NSSize(width: 18, height: 18)
+            let controlSize = NSSize(
+                width: ClaspDesign.Metrics.checklistControlSize,
+                height: ClaspDesign.Metrics.checklistControlSize
+            )
             button.frame = NSRect(
                 x: markerRect.minX,
-                y: origin.y + lineRect.minY + max(0, (lineRect.height - controlSize.height) / 2),
+                y: origin.y + item.lineRect.minY
+                    + max(0, (item.lineRect.height - controlSize.height) / 2),
                 width: controlSize.width,
                 height: controlSize.height
             ).integral

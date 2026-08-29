@@ -431,6 +431,72 @@ final class MarkdownSourceEditingTests: XCTestCase {
         XCTAssertEqual(empty.selection, NSRange(location: 3, length: 0))
     }
 
+    func testEveryInlineStyleEditsOnlySelectedCopyAtStartMiddleAndEnd() {
+        let positions: [(name: String, source: String, expected: (String, String) -> String)] = [
+            ("start", "target follows here", { opening, closing in "\(opening)target\(closing) follows here" }),
+            ("middle", "before target after", { opening, closing in "before \(opening)target\(closing) after" }),
+            ("end", "before target", { opening, closing in "before \(opening)target\(closing)" }),
+        ]
+        let styles: [(name: String, command: RichEditorCommand, opening: String, closing: String)] = [
+            ("bold", .bold, "**", "**"),
+            ("italic", .italic, "*", "*"),
+            ("strikethrough", .strikethrough, "~~", "~~"),
+            ("inline code", .inlineCode, "`", "`"),
+        ]
+
+        for position in positions {
+            for style in styles {
+                let result = apply(style.command, to: position.source, selecting: "target")
+                XCTAssertEqual(
+                    result.source,
+                    position.expected(style.opening, style.closing),
+                    "\(style.name) at \(position.name)"
+                )
+                XCTAssertEqual(
+                    (result.source as NSString).substring(with: result.selection),
+                    "target",
+                    "\(style.name) at \(position.name) must keep only the visible copy selected"
+                )
+            }
+
+            let link = apply(
+                .link("https://example.com/reference"),
+                to: position.source,
+                selecting: "target"
+            )
+            XCTAssertEqual(
+                link.source,
+                position.expected("[", "](https://example.com/reference)"),
+                "link at \(position.name)"
+            )
+            XCTAssertEqual((link.source as NSString).substring(with: link.selection), "target")
+        }
+    }
+
+    func testEveryParagraphStyleIsolatesSelectedCopyAtStartMiddleAndEnd() {
+        let positions: [(source: String, expectedBody: String, expectedHeading: (String) -> String)] = [
+            ("target omega", "target\nomega", { prefix in "\(prefix)target\nomega" }),
+            ("Alpha target omega", "Alpha\ntarget\nomega", { prefix in "Alpha\n\(prefix)target\nomega" }),
+            ("Alpha target", "Alpha\ntarget", { prefix in "Alpha\n\(prefix)target" }),
+        ]
+        let headings: [(RichEditorCommand, String)] = [
+            (.heading1, "# "), (.heading2, "## "), (.heading3, "### "),
+            (.heading4, "#### "), (.heading5, "##### "), (.heading6, "###### "),
+        ]
+
+        for position in positions {
+            for (command, prefix) in headings {
+                let result = apply(command, to: position.source, selecting: "target")
+                XCTAssertEqual(result.source, position.expectedHeading(prefix), "\(command)")
+                XCTAssertEqual((result.source as NSString).substring(with: result.selection), "target")
+            }
+
+            let body = apply(.body, to: position.source, selecting: "target")
+            XCTAssertEqual(body.source, position.expectedBody)
+            XCTAssertEqual((body.source as NSString).substring(with: body.selection), "target")
+        }
+    }
+
     func testLinkCommandUsesOnlyAllowlistedDestinations() {
         let safe = apply(.link("https://example.com/docs"), to: "Read this now", selecting: "this")
         XCTAssertEqual(safe.source, "Read [this](https://example.com/docs) now")
@@ -608,7 +674,8 @@ final class MarkdownSourceEditingTests: XCTestCase {
                 for range in token.markerRanges {
                     let font = try XCTUnwrap(storage.attribute(.font, at: range.location, effectiveRange: nil) as? NSFont)
                     let color = try XCTUnwrap(storage.attribute(.foregroundColor, at: range.location, effectiveRange: nil) as? NSColor)
-                    XCTAssertGreaterThanOrEqual(font.pointSize, 11, "Checklist marker must retain fixed layout metrics")
+                    XCTAssertGreaterThan(font.pointSize, 6, "Checklist marker must retain a stable native-control gutter")
+                    XCTAssertLessThan(font.pointSize, style.bodyFont.pointSize, "Checklist source must not reserve six body-sized glyphs")
                     XCTAssertTrue(color.isEqual(NSColor.clear), "Native Page checkbox replaces visible source punctuation")
                 }
                 continue
@@ -670,7 +737,8 @@ final class MarkdownSourceEditingTests: XCTestCase {
             storage.attribute(.font, at: decoration.markerRange.location, effectiveRange: nil) as? NSFont
         )
         XCTAssertTrue(markerColor.isEqual(NSColor.clear))
-        XCTAssertEqual(markerFont.pointSize, style.bodyFont.pointSize, accuracy: 0.01)
+        XCTAssertGreaterThan(markerFont.pointSize, 6)
+        XCTAssertLessThan(markerFont.pointSize, style.bodyFont.pointSize)
         XCTAssertEqual(Data(storage.string.utf8), Data(source.utf8))
 
         let markdown = MarkdownSourcePresentation.applyDocument(
