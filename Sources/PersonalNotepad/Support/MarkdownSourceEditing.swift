@@ -18,6 +18,7 @@ enum MarkdownSourceTokenKind: Equatable, Sendable {
     case blockquote
     case fencedCode(language: String?)
     case thematicBreak
+    case table
 }
 
 /// A semantic Markdown span. All ranges use NSString/UTF-16 coordinates, matching TextKit.
@@ -59,6 +60,7 @@ struct MarkdownChecklistItem: Equatable, Sendable {
 enum MarkdownPageBlockDecorationKind: Equatable, Sendable {
     case fencedCode
     case thematicBreak
+    case table
 }
 
 /// Presentation-only block geometry consumed by the AppKit text view. The
@@ -67,6 +69,17 @@ enum MarkdownPageBlockDecorationKind: Equatable, Sendable {
 struct MarkdownPageBlockDecoration: Equatable, Sendable {
     let kind: MarkdownPageBlockDecorationKind
     let range: NSRange
+    let headerRange: NSRange?
+
+    init(
+        kind: MarkdownPageBlockDecorationKind,
+        range: NSRange,
+        headerRange: NSRange? = nil
+    ) {
+        self.kind = kind
+        self.range = range
+        self.headerRange = headerRange
+    }
 }
 
 /// Presentation-only metadata for a native checkbox layered over unchanged
@@ -224,6 +237,51 @@ enum MarkdownSourceAnalyzer {
             ))
             fencedRanges.append(fullRange)
             index = (closingIndex ?? (lines.count - 1)) + 1
+        }
+
+        index = 0
+        while index + 1 < lines.count {
+            let header = lines[index]
+            let delimiter = lines[index + 1]
+            guard !intersectsAny(header.range, fencedRanges),
+                  !intersectsAny(delimiter.range, fencedRanges),
+                  let headerCells = tableCells(in: header.text),
+                  headerCells.count >= 2,
+                  let delimiterCells = tableCells(in: delimiter.text),
+                  delimiterCells.count == headerCells.count,
+                  delimiterCells.allSatisfy(isTableDelimiterCell) else {
+                index += 1
+                continue
+            }
+
+            var finalIndex = index + 1
+            while finalIndex + 1 < lines.count {
+                let candidate = lines[finalIndex + 1]
+                guard !intersectsAny(candidate.range, fencedRanges),
+                      let cells = tableCells(in: candidate.text),
+                      cells.count == headerCells.count else { break }
+                finalIndex += 1
+            }
+
+            let end = NSMaxRange(lines[finalIndex].fullRange)
+            let tableRange = NSRange(
+                location: header.range.location,
+                length: max(0, end - header.range.location)
+            )
+            var markers = tableSeparatorRanges(in: header)
+            markers.append(delimiter.range)
+            if finalIndex > index + 1 {
+                for rowIndex in (index + 2)...finalIndex {
+                    markers.append(contentsOf: tableSeparatorRanges(in: lines[rowIndex]))
+                }
+            }
+            tokens.append(.init(
+                kind: .table,
+                range: tableRange,
+                contentRange: tableRange,
+                markerRanges: markers
+            ))
+            index = finalIndex + 1
         }
 
         for line in lines where !intersectsAny(line.range, fencedRanges) {
@@ -385,6 +443,69 @@ enum MarkdownSourceAnalyzer {
             return String(trimmed.dropFirst().dropLast())
         }
         return trimmed
+    }
+
+    private static func tableCells(in line: String) -> [String]? {
+        let source = line as NSString
+        var cells: [String] = []
+        var start = 0
+        var sawSeparator = false
+        var index = 0
+        while index < source.length {
+            guard source.character(at: index) == 0x7C else {
+                index += 1
+                continue
+            }
+            var backslashCount = 0
+            var cursor = index
+            while cursor > 0, source.character(at: cursor - 1) == 0x5C {
+                backslashCount += 1
+                cursor -= 1
+            }
+            guard backslashCount.isMultiple(of: 2) else {
+                index += 1
+                continue
+            }
+            sawSeparator = true
+            cells.append(source.substring(with: NSRange(location: start, length: index - start)))
+            start = index + 1
+            index += 1
+        }
+        guard sawSeparator else { return nil }
+        cells.append(source.substring(from: start))
+        if cells.first?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
+            cells.removeFirst()
+        }
+        if cells.last?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
+            cells.removeLast()
+        }
+        return cells.isEmpty ? nil : cells
+    }
+
+    private static func isTableDelimiterCell(_ cell: String) -> Bool {
+        let trimmed = cell.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.range(of: #"^:?-{3,}:?$"#, options: .regularExpression) != nil
+    }
+
+    private static func tableSeparatorRanges(in line: Line) -> [NSRange] {
+        let source = line.text as NSString
+        var ranges: [NSRange] = []
+        var index = 0
+        while index < source.length {
+            if source.character(at: index) == 0x7C {
+                var backslashCount = 0
+                var cursor = index
+                while cursor > 0, source.character(at: cursor - 1) == 0x5C {
+                    backslashCount += 1
+                    cursor -= 1
+                }
+                if backslashCount.isMultiple(of: 2) {
+                    ranges.append(NSRange(location: line.range.location + index, length: 1))
+                }
+            }
+            index += 1
+        }
+        return ranges
     }
 
     private static func lines(in source: NSString) -> [Line] {
@@ -1543,6 +1664,29 @@ enum MarkdownSourcePresentation {
                 blockDecorations.append(.init(kind: .fencedCode, range: token.range))
             case .thematicBreak:
                 blockDecorations.append(.init(kind: .thematicBreak, range: token.range))
+            case .table:
+                let sourceString = source as NSString
+                let headerLine = sourceString.lineRange(for: NSRange(location: token.range.location, length: 0))
+                let headerEnd = min(NSMaxRange(headerLine), storage.length)
+                var visibleHeaderEnd = headerEnd
+                while visibleHeaderEnd > headerLine.location {
+                    let character = sourceString.character(at: visibleHeaderEnd - 1)
+                    if character == 0x0A || character == 0x0D { visibleHeaderEnd -= 1 } else { break }
+                }
+                let headerRange = NSRange(
+                    location: headerLine.location,
+                    length: max(0, visibleHeaderEnd - headerLine.location)
+                )
+                applyFontTrait(.boldFontMask, to: storage, range: headerRange)
+                let tableParagraph = paragraph.mutableCopy() as! NSMutableParagraphStyle
+                tableParagraph.lineHeightMultiple = max(1.15, min(1.35, style.lineHeightMultiplier))
+                tableParagraph.paragraphSpacing = max(3, style.paragraphSpacing * 0.35)
+                storage.addAttribute(.paragraphStyle, value: tableParagraph, range: token.range)
+                blockDecorations.append(.init(
+                    kind: .table,
+                    range: token.range,
+                    headerRange: headerRange
+                ))
             }
 
             for markerRange in token.markerRanges where NSMaxRange(markerRange) <= storage.length {
@@ -1599,6 +1743,11 @@ enum MarkdownSourcePresentation {
                 .foregroundColor: NSColor.clear,
             ]
         case .fencedCode:
+            return [
+                .font: NSFont.monospacedSystemFont(ofSize: max(2, style.bodyPointSize * 0.13), weight: .regular),
+                .foregroundColor: NSColor.clear,
+            ]
+        case .table:
             return [
                 .font: NSFont.monospacedSystemFont(ofSize: max(2, style.bodyPointSize * 0.13), weight: .regular),
                 .foregroundColor: NSColor.clear,

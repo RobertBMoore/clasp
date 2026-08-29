@@ -21,6 +21,51 @@ final class RegularNoteStoreTests: XCTestCase {
         XCTAssertEqual(rebuilt[0], note)
     }
 
+    func testExternalMarkdownEditsAndNewFilesRoundTripAcrossMultipleNotesWithoutCollateralChanges() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = RegularNoteStore(baseDirectory: root)
+        let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = Note(
+            title: "First",
+            body: "# Original\r\n\r\nExact cafe\u{301} 😀\r\n",
+            tags: ["one"],
+            createdAt: timestamp,
+            updatedAt: timestamp
+        )
+        let second = Note(
+            title: "Second",
+            body: "## Untouched\n\n- [ ] Preserve me\n",
+            tags: ["two"],
+            createdAt: timestamp.addingTimeInterval(1),
+            updatedAt: timestamp.addingTimeInterval(1)
+        )
+        try await store.save(first)
+        try await store.save(second)
+
+        let notesDirectory = root.appendingPathComponent("Notes", isDirectory: true)
+        let firstURL = notesDirectory.appendingPathComponent("\(first.id.uuidString.lowercased()).md")
+        let externallyEdited = "# Externally edited\r\n\r\n| Name | Status |\r\n| --- | --- |\r\n| Clasp | Ready |\r\n"
+        try Data(externallyEdited.utf8).write(to: firstURL, options: .atomic)
+
+        var loaded = try await store.load()
+        XCTAssertEqual(loaded.first(where: { $0.id == first.id })?.body, externallyEdited)
+        XCTAssertEqual(loaded.first(where: { $0.id == second.id }), second)
+        XCTAssertEqual(try Data(contentsOf: firstURL), Data(externallyEdited.utf8))
+
+        let externalID = UUID()
+        let externalBody = "# Imported by file sync\n\n> Source bytes stay canonical.\n"
+        let externalURL = notesDirectory.appendingPathComponent("\(externalID.uuidString.lowercased()).md")
+        try Data(externalBody.utf8).write(to: externalURL, options: .atomic)
+
+        loaded = try await store.load()
+        XCTAssertEqual(Set(loaded.map(\.id)), Set([first.id, second.id, externalID]))
+        XCTAssertEqual(loaded.first(where: { $0.id == externalID })?.body, externalBody)
+        XCTAssertEqual(loaded.first(where: { $0.id == second.id }), second)
+        XCTAssertEqual(try Data(contentsOf: firstURL), Data(externallyEdited.utf8))
+        XCTAssertEqual(try Data(contentsOf: externalURL), Data(externalBody.utf8))
+    }
+
     func testPermanentDeleteRemovesMarkdownAndIndexEntry() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

@@ -25,17 +25,21 @@ private enum VisualQAData {
         return [
             Note(
                 id: UUID(uuidString: "11111111-1111-4111-8111-111111111111")!,
-                title: "Launch checklist",
+                title: "Editor quality check",
                 body: """
-                # Launch checklist
+                # Editor quality check
 
-                - [x] Review the welcome flow
-                - [x] Verify keyboard shortcuts
-                - [ ] Capture final App Store screenshots
+                A source-exact page with **clear hierarchy** and *stable editing*.
 
-                **Focus:** keep every interaction calm, clear, and unmistakably Mac-native.
+                | Element | Result |
+                | --- | --- |
+                | Markdown | Preserved |
+                | Page mode | Polished |
+
+                - [x] Selection stays visible
+                - [ ] Final visual review
                 """,
-                tags: ["launch", "today"],
+                tags: ["editor", "visual"],
                 isPinned: true,
                 createdAt: now.addingTimeInterval(-86_400),
                 updatedAt: now.addingTimeInterval(-420),

@@ -107,12 +107,18 @@ final class MarkdownPageTextView: NSTextView {
         guard !sourceIsVisible, requestedRange.length > 0 else { return [] }
         return Self.blockDecorations(blockDecorations, intersecting: requestedRange).map { decoration in
             let intersection = NSIntersectionRange(decoration.range, requestedRange)
+            let label: String
+            switch decoration.kind {
+            case .fencedCode: label = "Code block"
+            case .thematicBreak: label = "Separator"
+            case .table: label = "Table"
+            }
             return MarkdownPageAccessibilityAnnotation(
                 range: NSRange(
                     location: intersection.location - requestedRange.location,
                     length: intersection.length
                 ),
-                label: decoration.kind == .fencedCode ? "Code block" : "Separator"
+                label: label
             )
         }
     }
@@ -290,6 +296,60 @@ final class MarkdownPageTextView: NSTextView {
                 rule.line(to: NSPoint(x: right, y: y))
                 rule.lineWidth = max(0.5, 1 / (window?.backingScaleFactor ?? 2))
                 rule.stroke()
+            case .table:
+                let rect = NSRect(
+                    x: left,
+                    y: max(page.minY + 10, glyphBounds.minY - 6),
+                    width: right - left,
+                    height: glyphBounds.height + 12
+                ).intersection(page.insetBy(dx: 12, dy: 10))
+                guard !rect.isEmpty, rect.intersects(dirtyRect) else { continue }
+
+                let fill = NSColor.controlBackgroundColor.blended(
+                    withFraction: 0.025,
+                    of: NSColor.labelColor
+                ) ?? NSColor.controlBackgroundColor
+                fill.setFill()
+                NSBezierPath(roundedRect: rect, xRadius: 7, yRadius: 7).fill()
+
+                if let headerRange = decoration.headerRange,
+                   NSMaxRange(headerRange) <= storage.length {
+                    let headerGlyphRange = layoutManager.glyphRange(
+                        forCharacterRange: headerRange,
+                        actualCharacterRange: nil
+                    )
+                    var headerBounds = layoutManager.boundingRect(forGlyphRange: headerGlyphRange, in: textContainer)
+                    headerBounds.origin.x += origin.x
+                    headerBounds.origin.y += origin.y
+                    let headerFillRect = NSRect(
+                        x: rect.minX,
+                        y: rect.minY,
+                        width: rect.width,
+                        height: min(rect.height, max(0, headerBounds.maxY + 5 - rect.minY))
+                    )
+                    NSColor.selectedContentBackgroundColor.withAlphaComponent(0.075).setFill()
+                    NSBezierPath(
+                        roundedRect: headerFillRect,
+                        xRadius: 7,
+                        yRadius: 7
+                    ).fill()
+                    NSColor.separatorColor.withAlphaComponent(0.5).setStroke()
+                    let headerRule = NSBezierPath()
+                    let y = min(rect.maxY, headerFillRect.maxY)
+                    headerRule.move(to: NSPoint(x: rect.minX, y: y))
+                    headerRule.line(to: NSPoint(x: rect.maxX, y: y))
+                    headerRule.lineWidth = max(0.5, 1 / (window?.backingScaleFactor ?? 2))
+                    headerRule.stroke()
+                }
+
+                NSColor.separatorColor.withAlphaComponent(0.6).setStroke()
+                let border = NSBezierPath(
+                    roundedRect: rect.insetBy(dx: 0.5, dy: 0.5),
+                    xRadius: 7,
+                    yRadius: 7
+                )
+                border.lineWidth = 1
+                border.stroke()
             }
         }
     }
