@@ -818,7 +818,11 @@ enum MarkdownSourceCommandTransformer {
             }
             return .init(range: NSRange(location: lineRange.location, length: existingLength), replacement: indent + marker)
         }
-        return replacing(source, edits: edits, mappedSelection: selection)
+        return replacing(
+            source,
+            edits: edits,
+            selection: mapSelectedContent(selection, through: edits)
+        )
     }
 
     private static func blockquote(_ source: String, selection: NSRange) -> MarkdownSourceEditResult {
@@ -838,7 +842,11 @@ enum MarkdownSourceCommandTransformer {
             let indentLength = leadingIndentLength(in: line, maximum: 3)
             return .init(range: NSRange(location: lineRange.location + indentLength, length: 0), replacement: "> ")
         }
-        return replacing(source, edits: edits, mappedSelection: selection)
+        return replacing(
+            source,
+            edits: edits,
+            selection: mapSelectedContent(selection, through: edits)
+        )
     }
 
     private static func fencedCode(_ source: String, selection: NSRange) -> MarkdownSourceEditResult {
