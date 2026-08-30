@@ -45,6 +45,44 @@ final class DocumentStyleTests: XCTestCase {
         XCTAssertNotEqual(light, dark)
     }
 
+    func testDocumentPaletteAdaptsAndMaintainsHighPrimaryTextContrast() throws {
+        let lightAppearance = try XCTUnwrap(NSAppearance(named: .aqua))
+        let darkAppearance = try XCTUnwrap(NSAppearance(named: .darkAqua))
+
+        func resolve(_ color: NSColor, in appearance: NSAppearance) throws -> NSColor {
+            var resolved: NSColor?
+            appearance.performAsCurrentDrawingAppearance {
+                resolved = color.usingColorSpace(.sRGB)
+            }
+            return try XCTUnwrap(resolved)
+        }
+
+        func luminance(_ color: NSColor) -> CGFloat {
+            func channel(_ value: CGFloat) -> CGFloat {
+                value <= 0.03928 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+            }
+            return (0.2126 * channel(color.redComponent))
+                + (0.7152 * channel(color.greenComponent))
+                + (0.0722 * channel(color.blueComponent))
+        }
+
+        func contrast(_ first: NSColor, _ second: NSColor) -> CGFloat {
+            let lighter = max(luminance(first), luminance(second))
+            let darker = min(luminance(first), luminance(second))
+            return (lighter + 0.05) / (darker + 0.05)
+        }
+
+        let lightText = try resolve(ClaspDesign.Color.documentText, in: lightAppearance)
+        let lightPage = try resolve(ClaspDesign.Color.documentPage, in: lightAppearance)
+        let darkText = try resolve(ClaspDesign.Color.documentText, in: darkAppearance)
+        let darkPage = try resolve(ClaspDesign.Color.documentPage, in: darkAppearance)
+
+        XCTAssertNotEqual(lightText, darkText)
+        XCTAssertNotEqual(lightPage, darkPage)
+        XCTAssertGreaterThanOrEqual(contrast(lightText, lightPage), 7)
+        XCTAssertGreaterThanOrEqual(contrast(darkText, darkPage), 7)
+    }
+
     func testDocumentFontChoicesResolveOnlyThroughMacOSSystemDesigns() {
         XCTAssertEqual(
             DocumentFontFamily.allCases.map(\.title),

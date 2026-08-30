@@ -1568,7 +1568,7 @@ enum MarkdownSourcePresentation {
         storage.beginEditing()
         storage.setAttributes([
             .font: font,
-            .foregroundColor: NSColor.labelColor,
+            .foregroundColor: ClaspDesign.Color.documentText,
             .paragraphStyle: paragraph,
         ], range: fullRange)
 
@@ -1611,13 +1611,13 @@ enum MarkdownSourcePresentation {
             case .inlineCode:
                 storage.addAttributes([
                     .font: NSFont.monospacedSystemFont(ofSize: max(11, style.bodyPointSize - 1), weight: .regular),
-                    .backgroundColor: NSColor.quaternaryLabelColor,
+                    .backgroundColor: ClaspDesign.Color.documentCodeBackground,
                 ], range: token.contentRange)
             case .link(let destination, let isAllowed):
                 if isAllowed, let url = URL(string: destination) {
                     storage.addAttributes([
                         .link: url,
-                        .foregroundColor: NSColor.linkColor,
+                        .foregroundColor: ClaspDesign.Color.documentLink,
                         .underlineStyle: NSUnderlineStyle.single.rawValue,
                     ], range: token.contentRange)
                 }
@@ -1653,7 +1653,7 @@ enum MarkdownSourcePresentation {
                 quoteParagraph.headIndent = style.bodyPointSize * 0.7
                 storage.addAttributes([
                     .paragraphStyle: quoteParagraph,
-                    .foregroundColor: NSColor.secondaryLabelColor,
+                    .foregroundColor: ClaspDesign.Color.documentSecondaryText,
                 ], range: token.contentRange)
             case .fencedCode:
                 storage.addAttribute(
@@ -1730,12 +1730,12 @@ enum MarkdownSourcePresentation {
         case .list:
             return [
                 .font: style.bodyFont,
-                .foregroundColor: NSColor.secondaryLabelColor,
+                .foregroundColor: ClaspDesign.Color.documentSecondaryText,
             ]
         case .blockquote:
             return [
                 .font: NSFont.monospacedSystemFont(ofSize: style.bodyPointSize, weight: .semibold),
-                .foregroundColor: NSColor.tertiaryLabelColor,
+                .foregroundColor: ClaspDesign.Color.documentSecondaryText,
             ]
         case .thematicBreak:
             return [
