@@ -48,6 +48,40 @@ enum ClaspDesign {
     }
 
     enum Color {
+        private static func dynamic(light: NSColor, dark: NSColor) -> NSColor {
+            NSColor(name: nil) { appearance in
+                appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+            }
+        }
+
+        /// Editorial colors belong to the note itself, not to macOS chrome.
+        /// The warm ink/paper pair keeps Page and Markdown modes visually
+        /// related while the surrounding controls remain semantic AppKit.
+        static let documentText = dynamic(
+            light: NSColor(srgbRed: 0.141, green: 0.137, blue: 0.161, alpha: 1),
+            dark: NSColor(srgbRed: 0.941, green: 0.922, blue: 0.890, alpha: 1)
+        )
+        static let documentSecondaryText = dynamic(
+            light: NSColor(srgbRed: 0.353, green: 0.345, blue: 0.384, alpha: 1),
+            dark: NSColor(srgbRed: 0.722, green: 0.706, blue: 0.745, alpha: 1)
+        )
+        static let documentLink = dynamic(
+            light: NSColor(srgbRed: 0.204, green: 0.192, blue: 0.427, alpha: 1),
+            dark: NSColor(srgbRed: 0.604, green: 0.584, blue: 0.961, alpha: 1)
+        )
+        static let documentPage = dynamic(
+            light: NSColor(srgbRed: 0.984, green: 0.980, blue: 0.969, alpha: 1),
+            dark: NSColor(srgbRed: 0.125, green: 0.125, blue: 0.153, alpha: 1)
+        )
+        static let markdownSourceBackground = dynamic(
+            light: NSColor(srgbRed: 0.961, green: 0.949, blue: 0.925, alpha: 1),
+            dark: NSColor(srgbRed: 0.110, green: 0.110, blue: 0.133, alpha: 1)
+        )
+        static let documentCodeBackground = dynamic(
+            light: NSColor(srgbRed: 0.941, green: 0.933, blue: 0.941, alpha: 1),
+            dark: NSColor(srgbRed: 0.161, green: 0.161, blue: 0.196, alpha: 1)
+        )
+
         static let editorCanvas = NSColor(name: nil) { appearance in
             var resolved = NSColor.windowBackgroundColor
             appearance.performAsCurrentDrawingAppearance {

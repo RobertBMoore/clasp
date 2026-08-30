@@ -205,7 +205,7 @@ final class MarkdownPageTextView: NSTextView {
             shadow.shadowBlurRadius = ClaspDesign.Metrics.editorPageShadowRadius
             shadow.shadowOffset = NSSize(width: 0, height: -1)
             shadow.set()
-            NSColor.textBackgroundColor.setFill()
+            ClaspDesign.Color.documentPage.setFill()
             NSBezierPath(
                 roundedRect: page,
                 xRadius: ClaspDesign.Metrics.editorPageCornerRadius,
@@ -619,7 +619,7 @@ struct RichMarkdownEditor: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.drawsBackground = true
-        scrollView.backgroundColor = showsSource ? .textBackgroundColor : ClaspDesign.Color.editorCanvas
+        scrollView.backgroundColor = showsSource ? ClaspDesign.Color.markdownSourceBackground : ClaspDesign.Color.editorCanvas
         scrollView.borderType = .noBorder
 
         let textView = MarkdownPageTextView(frame: .zero)
@@ -637,9 +637,9 @@ struct RichMarkdownEditor: NSViewRepresentable {
         textView.isContinuousSpellCheckingEnabled = true
         textView.isGrammarCheckingEnabled = true
         textView.drawsBackground = false
-        textView.insertionPointColor = .labelColor
+        textView.insertionPointColor = ClaspDesign.Color.documentText
         textView.linkTextAttributes = [
-            .foregroundColor: NSColor.linkColor,
+            .foregroundColor: ClaspDesign.Color.documentLink,
             .underlineStyle: NSUnderlineStyle.single.rawValue,
         ]
         textView.configurePage(style: style, showsSource: showsSource)
@@ -671,8 +671,8 @@ struct RichMarkdownEditor: NSViewRepresentable {
         let coordinator = context.coordinator
         coordinator.markdown = $markdown
         coordinator.scrollView = scrollView
-        textView.insertionPointColor = .labelColor
-        scrollView.backgroundColor = showsSource ? .textBackgroundColor : ClaspDesign.Color.editorCanvas
+        textView.insertionPointColor = ClaspDesign.Color.documentText
+        scrollView.backgroundColor = showsSource ? ClaspDesign.Color.markdownSourceBackground : ClaspDesign.Color.editorCanvas
 
         let resolvedStyle = MarkdownEditorPresentationStyle(style)
         let presentationChanged = resolvedStyle != coordinator.style || showsSource != coordinator.showsSource
@@ -913,7 +913,7 @@ struct RichMarkdownEditor: NSViewRepresentable {
             // the bottom while the user is highlighting text.
             textView.typingAttributes = [
                 .font: showsSource ? style.sourceFont : style.bodyFont,
-                .foregroundColor: NSColor.labelColor,
+                .foregroundColor: ClaspDesign.Color.documentText,
             ]
             isProgrammaticChange = false
 
