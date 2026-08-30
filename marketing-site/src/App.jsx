@@ -89,7 +89,7 @@ function Hero() {
 }
 
 function ModeButton({ active, children, onClick }) {
-  return <button className={active ? "mode-button is-active" : "mode-button"} onClick={onClick}>{children}</button>;
+  return <button className={active ? "mode-button is-active" : "mode-button"} aria-pressed={active} onClick={onClick}>{children}</button>;
 }
 
 function EditorToolbar({ mode, textareaRef, markdown, onChange }) {
@@ -116,24 +116,37 @@ function EditorToolbar({ mode, textareaRef, markdown, onChange }) {
 }
 
 function DemoApp({ capture = false }) {
+  const [demoNotes, setDemoNotes] = useState(notes);
   const [section, setSection] = useState("Inbox");
   const [selectedId, setSelectedId] = useState("field-notes");
   const [mode, setMode] = useState("page");
   const [query, setQuery] = useState("");
   const [vaultOpen, setVaultOpen] = useState(false);
   const [dark, setDark] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 620);
   const [content, setContent] = useState(Object.fromEntries([...notes, vaultNote].map((note) => [note.id, note.markdown])));
   const textareaRef = useRef(null);
-  const availableNotes = section === "Vault" ? (vaultOpen ? [vaultNote] : []) : notes.filter((note) => section !== "Pinned" || note.pinned).filter(() => section !== "Trash");
+  const availableNotes = section === "Vault" ? (vaultOpen ? [vaultNote] : []) : demoNotes.filter((note) => section !== "Pinned" || note.pinned).filter(() => section !== "Trash");
   const filtered = useMemo(() => availableNotes.filter((note) => `${note.title} ${note.preview} ${note.tags.join(" ")}`.toLowerCase().includes(query.toLowerCase())), [availableNotes, query]);
-  const selected = [...notes, vaultNote].find((note) => note.id === selectedId) || filtered[0];
+  const selected = filtered.find((note) => note.id === selectedId) || filtered[0] || null;
   const markdown = selected ? content[selected.id] : "";
   const changeMarkdown = (next) => selected && setContent((current) => ({ ...current, [selected.id]: next }));
   const selectSection = (name) => {
     setSection(name); setQuery("");
     if (name === "Vault" && vaultOpen) setSelectedId(vaultNote.id);
-    else if (name !== "Vault" && name !== "Trash") setSelectedId(notes.find((note) => name !== "Pinned" || note.pinned)?.id || notes[0].id);
+    else if (name !== "Vault" && name !== "Trash") setSelectedId(demoNotes.find((note) => name !== "Pinned" || note.pinned)?.id || demoNotes[0]?.id || "");
+    else setSelectedId("");
+    if (window.innerWidth <= 620) setSidebarOpen(false);
+  };
+  const createNote = () => {
+    const id = `quick-note-${Date.now()}`;
+    const note = { id, title: "Untitled note", preview: "A new local Markdown note, ready for your next thought.", age: "now", tags: ["today"], markdown: "# Untitled note\n\nStart writing here." };
+    setDemoNotes((current) => [note, ...current]);
+    setContent((current) => ({ ...current, [id]: note.markdown }));
+    setSection("Inbox");
+    setQuery("");
+    setSelectedId(id);
+    setMode("markdown");
   };
   const toggleChecklist = (event) => {
     const target = event.target;
@@ -148,7 +161,7 @@ function DemoApp({ capture = false }) {
     {!capture && <div className="shell section-intro"><p className="eyebrow">Try the real shape of it</p><h2>A notebook you can actually explore.</h2><p>This browser demo uses realistic synthetic notes. Search, move between spaces, unlock the sample Vault, edit Markdown, and watch the Page view stay in sync.</p></div>}
     <div className={`app-stage ${dark ? "is-dark" : ""}`}>
       <div className="app-window" aria-label="Interactive Clasp demo">
-        <div className="titlebar"><div className="traffic-lights" aria-hidden="true"><span /><span /><span /></div><button className="icon-button sidebar-button" aria-label="Toggle sidebar" onClick={() => setSidebarOpen((value) => !value)}><SidebarSimple /></button><div className="app-wordmark"><img src="/clasp-app-icon.png" alt="" /> Clasp</div><div className="titlebar-actions"><button className="icon-button" aria-label={dark ? "Use light preview" : "Use dark preview"} onClick={() => setDark((value) => !value)}>{dark ? <Sun /> : <Moon />}</button><button className="new-note"><NotePencil /> New note</button><label className="search-field"><MagnifyingGlass /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${section}`} /></label></div></div>
+        <div className="titlebar"><div className="traffic-lights" aria-hidden="true"><span /><span /><span /></div><button className="icon-button sidebar-button" aria-label={sidebarOpen ? "Close notebook navigation" : "Open notebook navigation"} aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((value) => !value)}><SidebarSimple /></button><div className="app-wordmark"><img src="/clasp-app-icon.png" alt="" /> Clasp</div><div className="titlebar-actions"><button className="icon-button" aria-label={dark ? "Use light preview" : "Use dark preview"} onClick={() => setDark((value) => !value)}>{dark ? <Sun /> : <Moon />}</button><button className="new-note" onClick={createNote}><NotePencil /><span>New note</span></button><label className="search-field"><MagnifyingGlass /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${section}`} /></label></div></div>
         <div className={`app-body ${sidebarOpen ? "" : "sidebar-closed"}`}>
           {sidebarOpen && <aside className="app-sidebar"><nav aria-label="Demo notebook sections">{navItems.map(([label, Icon]) => <button key={label} className={section === label ? "is-selected" : ""} onClick={() => selectSection(label)}><Icon /> {label}</button>)}</nav><p className="sidebar-label">Tags</p>{['thinking', 'today', 'reading', 'work'].map((tag) => <button className="tag-link" key={tag} onClick={() => setQuery(tag)}><Hash /> {tag}</button>)}<div className="local-badge"><ShieldCheck /><span><strong>Local by default</strong><small>No account required</small></span></div></aside>}
           <aside className="note-list"><div className="note-list-heading"><span>{section}</span><small>{filtered.length || "—"} notes</small></div>{section === "Vault" && !vaultOpen ? <div className="list-locked"><LockKey /><strong>Vault locked</strong><span>Unlock the sample to see a safe, synthetic note.</span></div> : filtered.length ? filtered.map((note) => <button key={note.id} onClick={() => setSelectedId(note.id)} className={selected?.id === note.id ? "note-card is-selected" : "note-card"}><span className="note-card-title">{note.pinned && <PushPin weight="fill" />} {note.title}</span><span>{note.preview}</span><small>{note.age} · {note.tags.join(", ")}</small></button>) : <div className="empty-list"><FileText /><span>{query ? "No notes match this search." : "Nothing here yet."}</span></div>}</aside>

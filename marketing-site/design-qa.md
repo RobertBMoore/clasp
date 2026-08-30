@@ -26,7 +26,14 @@
 - Confirmed the paper, ink, indigo, copper, editorial serif, restrained borders, realistic app capture, prelaunch state, and safety hierarchy remain coherent.
 - Confirmed mobile hierarchy, wrapping, tap targets, and document readability at 390 × 844.
 - Confirmed the browser console has no warnings or errors.
-- No remaining P0, P1, or P2 findings.
+
+### Pass 3
+
+- Replaced the inert New note affordance with a working source-backed note creation flow.
+- Cleared the editor when Trash or a zero-result search has no selectable note.
+- Added mobile access to notebook navigation, search, theme, and new-note creation.
+- Added pressed-state semantics to the Page/Markdown switch and a real icon declaration.
+- No remaining P0, P1, or P2 findings in this scope.
 
 ## Functional checks
 
@@ -45,7 +52,7 @@
 
 - `npm run build`: passed
 - `npm run test:sites`: 4 passed, 0 failed
-- `swift test`: 197 passed, 0 failed
+- `swift test`: 198 passed, 0 failed
 - Document palette test: light and dark primary text both meet at least 7:1 contrast against their page surface
 - `dist/Clasp.app`: locally signed and validated
 - Packaged `AppIcon.icns`: byte-for-byte matches the rebuilt source `.icns`

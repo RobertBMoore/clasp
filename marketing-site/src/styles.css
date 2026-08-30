@@ -213,10 +213,15 @@ footer { background: var(--ink); color: var(--paper); }
   .app-window { width: 100%; height: 720px; min-height: 720px; border-radius: 15px; }
   .titlebar { height: 52px; padding: 0 12px; gap: 9px; }
   .traffic-lights { display: none; }
-  .sidebar-button, .new-note, .search-field { display: none; }
+  .app-wordmark { display: none; }
+  .new-note { width: 34px; padding: 0; justify-content: center; }
+  .new-note span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .search-field { width: 112px; }
+  .search-field:focus-within { width: 132px; }
   .titlebar-actions { margin-left: auto; }
-  .app-body, .app-body.sidebar-closed { height: calc(100% - 52px); grid-template-columns: minmax(0, 1fr); }
+  .app-body, .app-body.sidebar-closed { position: relative; height: calc(100% - 52px); grid-template-columns: minmax(0, 1fr); }
   .app-sidebar, .note-list { display: none; }
+  .app-body:not(.sidebar-closed) .app-sidebar { position: absolute; z-index: 4; inset: 0 auto 0 0; width: min(270px, 84%); display: flex; box-shadow: 18px 0 34px rgba(24,24,27,.2); }
   .editor-header { min-height: 72px; padding-inline: 13px; }
   .editor-header h3 { max-width: 185px; font-size: 15px; }
   .mode-button { min-width: 63px; }
